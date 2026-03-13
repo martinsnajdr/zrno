@@ -201,7 +201,7 @@ struct MeterView: View {
             // ISO + selected lens name
             HStack(spacing: 12) {
                 Button(action: onISOTap) {
-                    Text("ISO \(iso)")
+                    Text("ISO \(iso, format: .number.grouping(.never))")
                         .font(.system(size: 14, weight: .semibold, design: .monospaced))
                         .foregroundStyle(theme.accentColor)
                         .padding(.horizontal, 14)

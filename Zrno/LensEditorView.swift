@@ -69,7 +69,7 @@ struct LensEditorView: View {
                     HStack {
                         Button { dismiss() } label: {
                             Text("Cancel")
-                                .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(theme.primaryColor)
                                 .padding(.horizontal, 16)
                                 .frame(height: 36)
@@ -84,7 +84,7 @@ struct LensEditorView: View {
 
                         Button { save() } label: {
                             Text("Save")
-                                .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(theme.primaryColor)
                                 .padding(.horizontal, 16)
                                 .frame(height: 36)
@@ -107,8 +107,8 @@ struct LensEditorView: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 16)
-                    .offset(y: 16)
+                    .frame(height: 6)
+                    .offset(y: 6)
                     .allowsHitTesting(false)
                 }
             }

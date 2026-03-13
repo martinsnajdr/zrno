@@ -44,11 +44,15 @@ struct SettingsView: View {
                                 } label: {
                                     HStack(spacing: 14) {
                                         RoundedRectangle(cornerRadius: 4)
-                                            .fill(scheme.primaryColor(isDark: theme.effectiveIsDark))
+                                            .fill(scheme.backgroundColor(isDark: true))
                                             .frame(width: 24, height: 24)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 4)
-                                                    .stroke(theme.primaryColor.opacity(0.1), lineWidth: 1)
+                                                    .strokeBorder(scheme.primaryColor(isDark: true), lineWidth: 2)
+                                            )
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 4)
+                                                    .stroke(theme.primaryColor.opacity(0.1), lineWidth: 0.5)
                                             )
 
                                         Text(scheme.displayName)
@@ -110,9 +114,10 @@ struct SettingsView: View {
                                     .font(.system(size: 15, weight: .medium, design: .monospaced))
                                     .foregroundStyle(theme.primaryColor)
                                 Spacer()
-                                Text("Light Meter for Film")
+                                Text("Your best friend when nobody wants to go out with you to take amazing photos")
                                     .font(.system(size: 13, weight: .regular, design: .monospaced))
                                     .foregroundStyle(theme.secondaryColor)
+                                    .multilineTextAlignment(.trailing)
                             }
                         }
                     }
@@ -134,7 +139,7 @@ struct SettingsView: View {
                         Spacer()
                         Button { dismiss() } label: {
                             Text("Done")
-                                .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(theme.primaryColor)
                                 .padding(.horizontal, 16)
                                 .frame(height: 36)
@@ -155,8 +160,8 @@ struct SettingsView: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 16)
-                    .offset(y: 16)
+                    .frame(height: 6)
+                    .offset(y: 6)
                     .allowsHitTesting(false)
                 }
             }

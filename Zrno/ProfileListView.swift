@@ -16,51 +16,63 @@ struct ProfileListView: View {
                     sheetSection("Cameras") {
                         ForEach(Array(profiles.enumerated()), id: \.element.persistentModelID) { index, profile in
                             sheetRow(isLast: index == profiles.count - 1) {
-                                HStack {
+                                HStack(spacing: 12) {
+                                    // Checkmark circle
                                     Button {
                                         selectProfile(profile)
                                     } label: {
-                                        HStack {
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(profile.name)
-                                                    .font(.system(size: 15, weight: .medium, design: .monospaced))
-                                                    .foregroundStyle(theme.primaryColor)
-                                                Text("ISO \(profile.filmISO) · \(profile.sortedApertures.count) apertures · \(profile.sortedShutterSpeeds.count) speeds")
-                                                    .font(.system(size: 11, weight: .regular, design: .monospaced))
-                                                    .foregroundStyle(theme.secondaryColor)
-                                            }
+                                        Image(systemName: profile.isSelected ? "checkmark.circle.fill" : "circle")
+                                            .font(.system(size: 20, weight: .regular))
+                                            .foregroundStyle(profile.isSelected ? theme.primaryColor : theme.secondaryColor.opacity(0.5))
+                                    }
+                                    .buttonStyle(.plain)
 
-                                            Spacer()
-
-                                            if profile.isSelected {
-                                                Image(systemName: "checkmark")
-                                                    .font(.system(size: 13, weight: .semibold))
-                                                    .foregroundStyle(theme.primaryColor)
-                                            }
+                                    // Name + info (tappable to select)
+                                    Button {
+                                        selectProfile(profile)
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(profile.name)
+                                                .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                                .foregroundStyle(theme.primaryColor)
+                                            Text("\(profile.lenses.count) lenses · \(profile.sortedShutterSpeeds.count) speeds")
+                                                .font(.system(size: 11, weight: .regular, design: .monospaced))
+                                                .foregroundStyle(theme.secondaryColor)
                                         }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                         .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
 
-                                    HStack(spacing: 12) {
-                                        Button {
-                                            editingProfile = profile
-                                        } label: {
-                                            Image(systemName: "pencil")
-                                                .font(.system(size: 14, weight: .medium))
-                                                .foregroundStyle(theme.secondaryColor)
-                                        }
-                                        .buttonStyle(.plain)
-
-                                        Button {
-                                            modelContext.delete(profile)
-                                        } label: {
-                                            Image(systemName: "trash")
-                                                .font(.system(size: 14, weight: .medium))
-                                                .foregroundStyle(theme.secondaryColor)
-                                        }
-                                        .buttonStyle(.plain)
+                                    // Edit
+                                    Button {
+                                        editingProfile = profile
+                                    } label: {
+                                        Image(systemName: "pencil")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundStyle(theme.secondaryColor)
+                                            .frame(width: 30, height: 30)
+                                            .background(
+                                                Circle()
+                                                    .fill(theme.backgroundColor)
+                                            )
                                     }
+                                    .buttonStyle(PressableButtonStyle())
+
+                                    // Delete
+                                    Button {
+                                        modelContext.delete(profile)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundStyle(theme.secondaryColor)
+                                            .frame(width: 30, height: 30)
+                                            .background(
+                                                Circle()
+                                                    .fill(theme.backgroundColor)
+                                            )
+                                    }
+                                    .buttonStyle(PressableButtonStyle())
                                 }
                             }
                         }
@@ -82,7 +94,7 @@ struct ProfileListView: View {
                     HStack {
                         Button { dismiss() } label: {
                             Text("Done")
-                                .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(theme.primaryColor)
                                 .padding(.horizontal, 16)
                                 .frame(height: 36)
@@ -119,8 +131,8 @@ struct ProfileListView: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 16)
-                    .offset(y: 16)
+                    .frame(height: 6)
+                    .offset(y: 6)
                     .allowsHitTesting(false)
                 }
             }
@@ -161,6 +173,14 @@ struct ProfileListView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(theme.primaryColor.opacity(theme.subtleOpacity))
             )
+        }
+    }
+
+    private struct PressableButtonStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .opacity(configuration.isPressed ? 0.4 : 1.0)
+                .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
         }
     }
 

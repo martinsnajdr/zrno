@@ -19,7 +19,7 @@ struct ISOPickerView: View {
                                     dismiss()
                                 } label: {
                                     HStack {
-                                        Text("ISO \(iso)")
+                                        Text("ISO \(iso, format: .number.grouping(.never))")
                                             .font(.system(size: 15, weight: .regular, design: .monospaced))
                                             .foregroundStyle(theme.primaryColor)
 
@@ -55,7 +55,7 @@ struct ISOPickerView: View {
                         Spacer()
                         Button { dismiss() } label: {
                             Text("Done")
-                                .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(theme.primaryColor)
                                 .padding(.horizontal, 16)
                                 .frame(height: 36)
@@ -76,8 +76,8 @@ struct ISOPickerView: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 16)
-                    .offset(y: 16)
+                    .frame(height: 6)
+                    .offset(y: 6)
                     .allowsHitTesting(false)
                 }
             }

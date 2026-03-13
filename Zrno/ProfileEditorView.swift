@@ -37,58 +37,59 @@ struct ProfileEditorView: View {
                         }
                     }
 
-                    // Film ISO
-                    sheetSection("Film ISO") {
-                        sheetRow(isLast: true) {
-                            HStack {
-                                Text("ISO")
-                                    .font(.system(size: 15, weight: .regular, design: .monospaced))
-                                    .foregroundStyle(theme.primaryColor)
-                                Spacer()
-                                Picker("", selection: $filmISO) {
-                                    ForEach(ExposureCalculator.standardISOs, id: \.self) { iso in
-                                        Text("\(iso)")
-                                            .tag(iso)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .tint(theme.primaryColor)
-                            }
-                        }
-                    }
-
                     // Lenses (only when editing)
                     if isEditing {
                         sheetSection("Lenses") {
                             let lenses = sortedLenses
                             ForEach(Array(lenses.enumerated()), id: \.element.id) { index, lens in
-                                sheetRow(isLast: index == lenses.count - 1 && true) {
-                                    HStack {
+                                sheetRow(isLast: index == lenses.count - 1 && lenses.count > 0) {
+                                    HStack(spacing: 12) {
+                                        // Checkmark circle
+                                        Button {
+                                            // Select this lens
+                                            for l in profile?.lenses ?? [] {
+                                                l.isSelected = (l.id == lens.id)
+                                            }
+                                        } label: {
+                                            Image(systemName: lens.isSelected ? "checkmark.circle.fill" : "circle")
+                                                .font(.system(size: 20, weight: .regular))
+                                                .foregroundStyle(lens.isSelected ? theme.primaryColor : theme.secondaryColor.opacity(0.5))
+                                        }
+                                        .buttonStyle(.plain)
+
+                                        // Name + info (tappable to edit)
                                         Button {
                                             editingLens = lens
                                         } label: {
-                                            HStack {
-                                                VStack(alignment: .leading, spacing: 2) {
-                                                    Text(lens.name)
-                                                        .font(.system(size: 15, weight: .medium, design: .monospaced))
-                                                        .foregroundStyle(theme.primaryColor)
-                                                    Text("\(lens.focalLength)mm · \(lens.apertures.count) apertures")
-                                                        .font(.system(size: 11, weight: .regular, design: .monospaced))
-                                                        .foregroundStyle(theme.secondaryColor)
-                                                }
-
-                                                Spacer()
-
-                                                if lens.isSelected {
-                                                    Image(systemName: "checkmark")
-                                                        .font(.system(size: 13, weight: .semibold))
-                                                        .foregroundStyle(theme.primaryColor)
-                                                }
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(lens.name)
+                                                    .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                                    .foregroundStyle(theme.primaryColor)
+                                                Text("\(lens.focalLength)mm · \(lens.apertures.count) apertures")
+                                                    .font(.system(size: 11, weight: .regular, design: .monospaced))
+                                                    .foregroundStyle(theme.secondaryColor)
                                             }
+                                            .frame(maxWidth: .infinity, alignment: .leading)
                                             .contentShape(Rectangle())
                                         }
                                         .buttonStyle(.plain)
 
+                                        // Edit
+                                        Button {
+                                            editingLens = lens
+                                        } label: {
+                                            Image(systemName: "pencil")
+                                                .font(.system(size: 13, weight: .medium))
+                                                .foregroundStyle(theme.secondaryColor)
+                                                .frame(width: 30, height: 30)
+                                                .background(
+                                                    Circle()
+                                                        .fill(theme.backgroundColor)
+                                                )
+                                        }
+                                        .buttonStyle(PressableButtonStyle())
+
+                                        // Delete
                                         Button {
                                             if let profile {
                                                 profile.lenses.removeAll { $0.id == lens.id }
@@ -96,17 +97,21 @@ struct ProfileEditorView: View {
                                             }
                                         } label: {
                                             Image(systemName: "trash")
-                                                .font(.system(size: 14, weight: .medium))
+                                                .font(.system(size: 13, weight: .medium))
                                                 .foregroundStyle(theme.secondaryColor)
+                                                .frame(width: 30, height: 30)
+                                                .background(
+                                                    Circle()
+                                                        .fill(theme.backgroundColor)
+                                                )
                                         }
-                                        .buttonStyle(.plain)
+                                        .buttonStyle(PressableButtonStyle())
                                     }
                                 }
                             }
 
-                            // Add Lens button as last row if lenses exist, or only row
+                            // Add Lens button
                             if !lenses.isEmpty {
-                                // Separator before add button
                                 VStack(spacing: 0) {
                                     Rectangle()
                                         .fill(theme.primaryColor.opacity(0.08))
@@ -149,7 +154,7 @@ struct ProfileEditorView: View {
                             }
                         }
 
-                        Text("Each lens defines its own set of apertures. Tap to edit, trash to delete.")
+                        Text("Each lens defines its own set of apertures.")
                             .font(.system(size: 12, weight: .regular, design: .monospaced))
                             .foregroundStyle(theme.secondaryColor)
                             .padding(.leading, 4)
@@ -175,35 +180,38 @@ struct ProfileEditorView: View {
                             let speeds = Array(selectedShutterSpeeds).sorted()
                             ForEach(Array(speeds.enumerated()), id: \.element) { index, speed in
                                 sheetRow(isLast: index == speeds.count - 1) {
-                                    HStack {
+                                    HStack(spacing: 12) {
                                         Text(ExposureCalculator.formatShutterSpeed(speed))
-                                            .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                            .font(.system(size: 13, weight: .medium, design: .monospaced))
                                             .foregroundStyle(theme.primaryColor)
-                                            .frame(width: 70, alignment: .leading)
+                                            .frame(width: 55, alignment: .leading)
 
                                         Image(systemName: "arrow.right")
-                                            .font(.system(size: 12))
+                                            .font(.system(size: 10))
                                             .foregroundStyle(theme.secondaryColor)
+                                            .frame(width: 12)
 
                                         HStack(spacing: 2) {
                                             Text("1/")
-                                                .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                                .font(.system(size: 13, weight: .regular, design: .monospaced))
                                                 .foregroundStyle(theme.secondaryColor)
                                             TextField(
                                                 reciprocalPlaceholder(for: speed),
                                                 text: calibrationBinding(for: speed)
                                             )
-                                            .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                            .font(.system(size: 13, weight: .regular, design: .monospaced))
                                             .foregroundStyle(theme.primaryColor)
                                             .keyboardType(.numberPad)
-                                            .frame(width: 60)
+                                            .frame(width: 50)
                                         }
+
+                                        Spacer()
                                     }
                                 }
                             }
                         }
 
-                        Text("If a shutter speed differs from its marking, enter the actual measured value. E.g. if 1/125 actually exposes at 1/105, type 105.")
+                        Text("Advanced: if you've measured a shutter speed to differ from its marking, enter the actual value. E.g. if 1/125 runs at 1/105, type 105.")
                             .font(.system(size: 12, weight: .regular, design: .monospaced))
                             .foregroundStyle(theme.secondaryColor)
                             .padding(.leading, 4)
@@ -226,7 +234,7 @@ struct ProfileEditorView: View {
                     HStack {
                         Button { dismiss() } label: {
                             Text("Cancel")
-                                .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(theme.primaryColor)
                                 .padding(.horizontal, 16)
                                 .frame(height: 36)
@@ -241,7 +249,7 @@ struct ProfileEditorView: View {
 
                         Button { save() } label: {
                             Text("Save")
-                                .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(theme.primaryColor)
                                 .padding(.horizontal, 16)
                                 .frame(height: 36)
@@ -264,8 +272,8 @@ struct ProfileEditorView: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 16)
-                    .offset(y: 16)
+                    .frame(height: 6)
+                    .offset(y: 6)
                     .allowsHitTesting(false)
                 }
             }
@@ -345,6 +353,14 @@ struct ProfileEditorView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(theme.primaryColor.opacity(theme.subtleOpacity))
             )
+        }
+    }
+
+    private struct PressableButtonStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .opacity(configuration.isPressed ? 0.4 : 1.0)
+                .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
         }
     }
 

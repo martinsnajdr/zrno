@@ -38,9 +38,9 @@ enum ThemeScheme: String, CaseIterable, Codable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .noir: return "Noir"
-        case .cream: return "Cream"
-        case .blueSteel: return "Blue Steel"
+        case .noir: return "Midnight Noir"
+        case .cream: return "Vintage Cream"
+        case .blueSteel: return "Frosty Steel"
         case .darkroomRed: return "Darkroom Red"
         }
     }
