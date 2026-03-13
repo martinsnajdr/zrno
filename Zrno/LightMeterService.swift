@@ -415,7 +415,7 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
             .oriented(.right)
 
-        // Crop to 4:3 landscape, downscale to 64x48 for a pixelated preview
+        // Crop to 4:3 landscape, downscale to 20x15 for a pixelated preview
         let extent = ciImage.extent
         let targetAspect: CGFloat = 4.0 / 3.0
         let cropW: CGFloat
@@ -439,8 +439,8 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
                 y: -cropRect.origin.y
             ))
 
-        let targetW: CGFloat = 64
-        let targetH: CGFloat = 48
+        let targetW: CGFloat = 20
+        let targetH: CGFloat = 15
         let scaleX = targetW / cropW
         let scaleY = targetH / cropH
         let scaled = cropped
@@ -623,7 +623,7 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
     }
 
     private func generateSimulatorPreview() {
-        let size = CGSize(width: 64, height: 48)
+        let size = CGSize(width: 20, height: 15)
         let renderer = UIGraphicsImageRenderer(size: size)
         let uiImage = renderer.image { ctx in
             let colors = [
