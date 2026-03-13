@@ -45,7 +45,9 @@ struct ScenePreviewView: View {
             // Monochrome preview using .screen blend:
             // Black source pixels → show shadow color, white → stay white/bright
             let tint = theme.scheme.previewTint
-            let shadowColor = Color(red: tint.r * 0.35, green: tint.g * 0.35, blue: tint.b * 0.35)
+            let shadowColor: Color = theme.effectiveIsDark
+                ? theme.backgroundColor
+                : Color(red: tint.r * 0.12, green: tint.g * 0.12, blue: tint.b * 0.12)
             Image(decorative: image, scale: 1.0)
                 .interpolation(.none)
                 .resizable()

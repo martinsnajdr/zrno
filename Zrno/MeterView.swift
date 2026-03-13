@@ -53,7 +53,7 @@ struct MeterView: View {
 
     private var portraitLayout: some View {
         VStack(spacing: 0) {
-            Spacer().frame(height: 64)
+            Spacer().frame(height: 76)
 
             exposureControls
 
@@ -128,13 +128,12 @@ struct MeterView: View {
                     formatter: ExposureCalculator.formatAperture,
                     onSelect: onApertureSelect,
                     font: .system(size: 44, weight: .ultraLight, design: theme.design),
-                    onTapSelected: onApertureLock,
-                    cellWidth: 90
+                    onTapSelected: onApertureLock
                 )
                 .frame(height: 52)
                 .overlay(alignment: .leading) {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 10))
+                        .font(.system(size: 14))
                         .foregroundStyle(theme.accentColor)
                         .padding(.leading, 6)
                 }
@@ -147,6 +146,7 @@ struct MeterView: View {
                         .contentTransition(.numericText(value: aperture))
                 }
                 .buttonStyle(.plain)
+                .frame(height: 52)
                 .accessibilityIdentifier("apertureLabel")
             }
 
@@ -158,13 +158,12 @@ struct MeterView: View {
                     formatter: ExposureCalculator.formatShutterSpeed,
                     onSelect: onShutterSelect,
                     font: .system(size: 78, weight: .bold, design: theme.design),
-                    onTapSelected: onShutterLock,
-                    cellWidth: 140
+                    onTapSelected: onShutterLock
                 )
                 .frame(height: 90)
                 .overlay(alignment: .leading) {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 12))
+                        .font(.system(size: 16))
                         .foregroundStyle(theme.accentColor)
                         .padding(.leading, 6)
                 }
@@ -177,6 +176,7 @@ struct MeterView: View {
                         .contentTransition(.numericText(value: shutterSpeed))
                 }
                 .buttonStyle(.plain)
+                .frame(height: 90)
                 .accessibilityIdentifier("shutterSpeedLabel")
             }
 
