@@ -8,52 +8,62 @@ struct ContentView: View {
     @Query private var allProfiles: [CameraProfile]
 
     @State private var lightMeter = LightMeterService()
+    @State private var theme = AppTheme()
     @State private var showProfileList = false
     @State private var showISOPicker = false
+    @State private var showSettings = false
     @State private var isEditingLayout = false
     @State private var layoutOffsets = LayoutOffsets.load()
-    @State private var showHistogram = false
+    @State private var previewMode: PreviewMode = .hidden
 
     private var activeProfile: CameraProfile? { selectedProfiles.first }
 
     var body: some View {
         ZStack {
-            // Lo-fi monochrome background
-            ScenePreviewView(
-                image: lightMeter.previewImage,
-                histogramBins: lightMeter.histogramBins,
-                showHistogram: $showHistogram
-            )
+            // Solid theme background (no fullscreen camera preview)
+            theme.backgroundColor.ignoresSafeArea()
 
             if lightMeter.isRunning || !lightMeter.permissionGranted {
                 meterContent
             } else {
                 VStack(spacing: 16) {
                     ProgressView()
-                        .tint(.white.opacity(0.5))
+                        .tint(theme.secondaryColor)
                     Text("Starting meter...")
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.4))
+                        .font(.system(size: 15, weight: .medium, design: theme.design))
+                        .foregroundStyle(theme.secondaryColor)
                 }
             }
 
             // Top controls
             VStack {
                 HStack {
-                    // Histogram toggle
-                    Button {
-                        withAnimation(.spring(duration: 0.3)) {
-                            showHistogram.toggle()
-                        }
-                    } label: {
-                        Image(systemName: showHistogram ? "chart.bar.fill" : "chart.bar")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(.white.opacity(showHistogram ? 0.7 : 0.3))
-                            .frame(width: 40, height: 40)
-                            .background(.white.opacity(0.08), in: Circle())
+                    // Camera selector
+                    if lightMeter.availableCameras.count > 1 {
+                        CameraSelectorView(
+                            cameras: lightMeter.availableCameras,
+                            activeCameraID: lightMeter.activeCameraID,
+                            onSelect: { lens in
+                                lightMeter.switchCamera(to: lens)
+                            }
+                        )
                     }
 
                     Spacer()
+
+                    // Settings button
+                    if !isEditingLayout {
+                        Button {
+                            showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(theme.primaryColor.opacity(0.3))
+                                .frame(width: 40, height: 40)
+                                .background(theme.primaryColor.opacity(0.08), in: Circle())
+                        }
+                        .accessibilityIdentifier("settingsButton")
+                    }
 
                     // Edit mode done button
                     if isEditingLayout {
@@ -63,19 +73,29 @@ struct ContentView: View {
                                 layoutOffsets.save()
                             }
                         }
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 17, weight: .semibold, design: theme.design))
+                        .foregroundStyle(theme.primaryColor)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 10)
-                        .background(.white.opacity(0.15), in: Capsule())
+                        .background(theme.primaryColor.opacity(0.15), in: Capsule())
                         .transition(.opacity)
                     }
                 }
                 .padding(.top, 60)
                 .padding(.horizontal, 20)
+
+                // Scene preview window (small, swipeable)
+                ScenePreviewView(
+                    image: lightMeter.previewImage,
+                    histogramBins: lightMeter.histogramBins,
+                    previewMode: $previewMode
+                )
+                .padding(.top, 8)
+
                 Spacer()
             }
         }
+        .environment(\.appTheme, theme)
         .preferredColorScheme(.dark)
         .persistentSystemOverlays(.hidden)
         .onAppear {
@@ -91,17 +111,27 @@ struct ContentView: View {
             }
         }
         .onChange(of: allProfiles.count) {
-            // Re-evaluate when profiles change
+            if let profile = activeProfile {
+                lightMeter.updateRecommendation(for: profile)
+            }
+        }
+        .onChange(of: activeProfile?.exposureCompensation) {
             if let profile = activeProfile {
                 lightMeter.updateRecommendation(for: profile)
             }
         }
         .sheet(isPresented: $showProfileList) {
             ProfileListView()
+                .environment(\.appTheme, theme)
         }
         .sheet(isPresented: $showISOPicker) {
             ISOPickerView(profile: activeProfile)
+                .environment(\.appTheme, theme)
                 .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+                .environment(\.appTheme, theme)
         }
         .onLongPressGesture(minimumDuration: 0.5) {
             withAnimation(.spring(duration: 0.3)) {
@@ -121,18 +151,50 @@ struct ContentView: View {
                     iso: activeProfile?.filmISO ?? 400,
                     profileName: activeProfile?.name ?? "No Camera",
                     combinations: lightMeter.exposureCombinations,
+                    compensation: Binding(
+                        get: { activeProfile?.exposureCompensation ?? 0 },
+                        set: { activeProfile?.exposureCompensation = $0 }
+                    ),
+                    meterMode: lightMeter.meterMode,
+                    focusPosition: lightMeter.focusPosition,
+                    availableApertures: activeProfile?.sortedApertures ?? [],
+                    availableShutterSpeeds: activeProfile?.sortedShutterSpeeds ?? [],
                     onISOTap: { showISOPicker = true },
-                    onProfileTap: { showProfileList = true }
+                    onProfileTap: { showProfileList = true },
+                    onApertureLock: {
+                        lightMeter.toggleAperturePriority(currentAperture: lightMeter.recommendedAperture)
+                        if let profile = activeProfile {
+                            lightMeter.updateRecommendation(for: profile)
+                        }
+                    },
+                    onShutterLock: {
+                        lightMeter.toggleShutterPriority(currentShutter: lightMeter.recommendedShutterSpeed)
+                        if let profile = activeProfile {
+                            lightMeter.updateRecommendation(for: profile)
+                        }
+                    },
+                    onApertureSelect: { value in
+                        lightMeter.setLockedAperture(value)
+                        if let profile = activeProfile {
+                            lightMeter.updateRecommendation(for: profile)
+                        }
+                    },
+                    onShutterSelect: { value in
+                        lightMeter.setLockedShutterSpeed(value)
+                        if let profile = activeProfile {
+                            lightMeter.updateRecommendation(for: profile)
+                        }
+                    }
                 )
             }
         } else {
             VStack(spacing: 16) {
                 Image(systemName: "camera")
                     .font(.system(size: 40))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(theme.primaryColor.opacity(0.3))
                 Text("Camera access is required\nto measure light")
-                    .font(.system(size: 17, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .font(.system(size: 17, weight: .medium, design: theme.design))
+                    .foregroundStyle(theme.secondaryColor)
                     .multilineTextAlignment(.center)
             }
         }
@@ -163,12 +225,12 @@ struct LayoutOffsets: Codable {
 
     func save() {
         if let data = try? JSONEncoder().encode(self) {
-            UserDefaults.standard.set(data, forKey: "svit.layout")
+            UserDefaults.standard.set(data, forKey: "zrno.layout")
         }
     }
 
     static func load() -> LayoutOffsets {
-        guard let data = UserDefaults.standard.data(forKey: "svit.layout"),
+        guard let data = UserDefaults.standard.data(forKey: "zrno.layout"),
               let offsets = try? JSONDecoder().decode(LayoutOffsets.self, from: data) else {
             return LayoutOffsets()
         }
@@ -194,7 +256,7 @@ struct DraggableContainer<Content: View>: View {
             .overlay {
                 if isEditing {
                     RoundedRectangle(cornerRadius: 20)
-                        .stroke(.white.opacity(0.15), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
                         .padding(-16)
                 }
             }
