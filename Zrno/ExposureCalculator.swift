@@ -4,12 +4,18 @@ enum ExposureCalculator {
 
     // MARK: - Standard Photography Stops
 
-    static let standardApertures: [Double] = [1.0, 1.4, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0, 22.0]
+    static let standardApertures: [Double] = [
+        0.7, 0.8, 0.95, 1.0, 1.1, 1.2, 1.4, 1.5, 1.7, 1.8,
+        2.0, 2.2, 2.4, 2.5, 2.8, 3.2, 3.5, 4.0, 4.5, 5.0,
+        5.6, 6.3, 7.1, 8.0, 9.0, 10.0, 11.0, 13.0, 14.0, 16.0,
+        18.0, 20.0, 22.0, 25.0, 29.0, 32.0, 36.0, 40.0, 45.0, 64.0
+    ]
 
     static let standardShutterSpeeds: [Double] = [
-        1.0 / 4000, 1.0 / 2000, 1.0 / 1000, 1.0 / 500, 1.0 / 250,
+        1.0 / 12000, 1.0 / 8000, 1.0 / 6000, 1.0 / 4000,
+        1.0 / 2000, 1.0 / 1000, 1.0 / 500, 1.0 / 250,
         1.0 / 125, 1.0 / 60, 1.0 / 30, 1.0 / 15, 1.0 / 8,
-        1.0 / 4, 1.0 / 2, 1.0, 2.0, 4.0, 8.0
+        1.0 / 4, 1.0 / 2, 1.0, 2.0, 4.0, 8.0, 16.0, 30.0
     ]
 
     static let standardISOs: [Int] = [25, 50, 100, 200, 400, 800, 1600, 3200]
@@ -49,7 +55,7 @@ enum ExposureCalculator {
         compensation: Double = 0.0,
         calibration: ((Double) -> Double)? = nil
     ) -> (aperture: Double, shutterSpeed: Double) {
-        let adjustedEV = ev100 + compensation
+        let adjustedEV = ev100 - compensation
         var bestPair: (Double, Double) = (
             availableApertures.first ?? 5.6,
             availableShutterSpeeds.first ?? 1.0 / 125
@@ -66,7 +72,10 @@ enum ExposureCalculator {
             }) {
                 let actualNearest = calibration?(nearest) ?? nearest
                 let error = abs(log2(actualNearest) - log2(idealShutter))
-                if error < bestError {
+                // Prefer aperture closest to f/8 when errors are within 0.5 stops
+                let newDist = abs(log2(aperture) - log2(8.0))
+                let oldDist = abs(log2(bestPair.0) - log2(8.0))
+                if error < bestError - 0.5 || (error < bestError + 0.5 && newDist < oldDist) {
                     bestError = error
                     bestPair = (aperture, nearest)
                 }
@@ -87,7 +96,7 @@ enum ExposureCalculator {
         compensation: Double = 0.0,
         calibration: ((Double) -> Double)? = nil
     ) -> [(aperture: Double, shutterSpeed: Double)] {
-        let adjustedEV = ev100 + compensation
+        let adjustedEV = ev100 - compensation
         return availableApertures.compactMap { aperture in
             let idealShutter = self.shutterSpeed(forAperture: aperture, ev100: adjustedEV, filmISO: filmISO)
             guard idealShutter > 0 else { return nil }
@@ -129,11 +138,14 @@ enum ExposureCalculator {
         return "1/\(rounded)"
     }
 
-    /// Format aperture for display: "f/2.8", "f/8"
+    /// Format aperture for display: "f/0.95", "f/2.8", "f/8"
     static func formatAperture(_ aperture: Double) -> String {
         guard aperture > 0, aperture.isFinite else { return "—" }
         if aperture == floor(aperture) || abs(aperture - round(aperture)) < 0.05 {
             return "f/\(Int(round(aperture)))"
+        }
+        if aperture < 1.0 {
+            return String(format: "f/%.2f", aperture)
         }
         return String(format: "f/%.1f", aperture)
     }

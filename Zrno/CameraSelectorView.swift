@@ -22,7 +22,7 @@ struct CameraSelectorView: View {
                             lens.id == activeCameraID
                                 ? theme.primaryColor.opacity(0.12)
                                 : theme.primaryColor.opacity(0.04),
-                            in: Capsule()
+                            in: RoundedRectangle(cornerRadius: 4)
                         )
                 }
             }

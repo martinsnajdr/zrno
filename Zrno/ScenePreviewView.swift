@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// A small window that cycles between hidden / camera preview / histogram via swipe or tap.
+/// Camera preview and histogram, cycled via swipe/tap.
+/// Always occupies a fixed frame so it doesn't push other controls.
 struct ScenePreviewView: View {
     @Environment(\.appTheme) private var theme
 
@@ -8,79 +9,32 @@ struct ScenePreviewView: View {
     let histogramBins: [Float]
     @Binding var previewMode: PreviewMode
 
-    private let windowWidth: CGFloat = 160
-    private let windowHeight: CGFloat = 100
-    private let cornerRadius: CGFloat = 8
-
     @State private var dragOffset: CGFloat = 0
 
     var body: some View {
-        VStack(spacing: 6) {
-            Group {
-                switch previewMode {
-                case .hidden:
-                    // Tappable placeholder — tap to cycle to camera
-                    Rectangle()
-                        .fill(Color.clear)
-                        .frame(width: windowWidth, height: 24)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            withAnimation(.spring(duration: 0.3)) {
-                                previewMode = previewMode.next
-                            }
-                        }
+        Group {
+            switch previewMode {
+            case .histogram:
+                HistogramView(bins: histogramBins)
+                    .frame(maxWidth: .infinity)
 
-                case .camera:
-                    cameraContent
-                        .frame(width: windowWidth, height: windowHeight)
-                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: cornerRadius)
-                                .stroke(theme.primaryColor.opacity(0.12), lineWidth: 0.5)
-                        )
-                        .onTapGesture {
-                            withAnimation(.spring(duration: 0.3)) {
-                                previewMode = previewMode.next
-                            }
-                        }
-
-                case .histogram:
-                    HistogramView(bins: histogramBins)
-                        .frame(width: windowWidth, height: windowHeight)
-                        .padding(8)
-                        .background(theme.primaryColor.opacity(0.03))
-                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: cornerRadius)
-                                .stroke(theme.primaryColor.opacity(0.12), lineWidth: 0.5)
-                        )
-                        .onTapGesture {
-                            withAnimation(.spring(duration: 0.3)) {
-                                previewMode = previewMode.next
-                            }
-                        }
-                }
+            case .camera:
+                cameraContent
             }
-            .offset(x: dragOffset)
-            .gesture(swipeGesture)
-
-            // Page dots — always visible, tappable
-            HStack(spacing: 6) {
-                ForEach(PreviewMode.allCases, id: \.rawValue) { mode in
-                    Circle()
-                        .fill(mode == previewMode ? theme.primaryColor.opacity(0.6) : theme.primaryColor.opacity(0.15))
-                        .frame(width: 6, height: 6)
-                }
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(.spring(duration: 0.3)) {
-                    previewMode = previewMode.next
-                }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .offset(x: dragOffset)
+        .gesture(swipeGesture)
+        .onTapGesture {
+            withAnimation(.spring(duration: 0.3)) {
+                previewMode = previewMode.next
             }
         }
         .animation(.spring(duration: 0.3), value: previewMode)
         .animation(.spring(duration: 0.2), value: dragOffset)
+        .accessibilityIdentifier("scenePreview")
     }
 
     // MARK: - Camera Content
@@ -88,18 +42,27 @@ struct ScenePreviewView: View {
     @ViewBuilder
     private var cameraContent: some View {
         if let image {
+            // Monochrome preview: white highlights stay white, shadows take scheme color.
+            // The source image is grayscale from CIPhotoEffectNoir.
+            // Using .screen blend: white pixels stay white, black pixels show the background.
+            let tint = theme.scheme.previewTint
+            let shadowColor = Color(red: tint.r * 0.3, green: tint.g * 0.3, blue: tint.b * 0.3)
             Image(decorative: image, scale: 1.0)
+                .interpolation(.none)
                 .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: windowWidth, height: windowHeight)
-                .clipped()
+                .aspectRatio(4.0 / 3.0, contentMode: .fit)
+                .blendMode(.screen)
+                .background(shadowColor)
+                .clipShape(RoundedRectangle(cornerRadius: 2))
         } else {
             Rectangle()
-                .fill(theme.primaryColor.opacity(0.05))
+                .fill(theme.primaryColor.opacity(0.03))
+                .aspectRatio(4.0 / 3.0, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 2))
                 .overlay {
                     Image(systemName: "camera")
-                        .font(.system(size: 20))
-                        .foregroundStyle(theme.primaryColor.opacity(0.2))
+                        .font(.system(size: 16))
+                        .foregroundStyle(theme.primaryColor.opacity(0.15))
                 }
         }
     }
@@ -138,7 +101,7 @@ struct ScenePreviewView: View {
                 let dist = Float(i) - center
                 return exp(-(dist * dist) / (2 * spread * spread))
             },
-            previewMode: .constant(.camera)
+            previewMode: .constant(.histogram)
         )
     }
 }

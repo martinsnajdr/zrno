@@ -28,14 +28,15 @@ struct PriorityValuePicker: View {
                                     isSelected
                                         ? theme.accentColor.opacity(0.2)
                                         : theme.primaryColor.opacity(0.05),
-                                    in: Capsule()
+                                    in: RoundedRectangle(cornerRadius: 4)
                                 )
                                 .overlay(
                                     isSelected
-                                        ? Capsule().stroke(theme.accentColor.opacity(0.4), lineWidth: 1)
+                                        ? RoundedRectangle(cornerRadius: 4).stroke(theme.accentColor.opacity(0.4), lineWidth: 1)
                                         : nil
                                 )
                         }
+                        .buttonStyle(.plain)
                         .id(value)
                     }
                 }

@@ -22,11 +22,6 @@ final class ZrnoUITests: XCTestCase {
         let apertureButton = app.buttons["apertureLabel"]
         XCTAssertTrue(apertureButton.waitForExistence(timeout: 3),
                       "Aperture button should appear on meter screen")
-
-        // EV label is a text element
-        let evLabel = app.staticTexts["evLabel"]
-        XCTAssertTrue(evLabel.waitForExistence(timeout: 3),
-                      "EV label should appear on meter screen")
     }
 
     @MainActor
@@ -40,7 +35,7 @@ final class ZrnoUITests: XCTestCase {
     func testMeterScreenShowsProfileButton() throws {
         let profileButton = app.buttons["profileButton"]
         XCTAssertTrue(profileButton.waitForExistence(timeout: 5),
-                      "Profile button should be visible on meter screen")
+                      "Camera profile button should be visible on meter screen")
     }
 
     @MainActor
@@ -48,6 +43,13 @@ final class ZrnoUITests: XCTestCase {
         let settingsButton = app.buttons["settingsButton"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 5),
                       "Settings button should be visible")
+    }
+
+    @MainActor
+    func testEVLabelExists() throws {
+        let evLabel = app.staticTexts["evLabel"]
+        XCTAssertTrue(evLabel.waitForExistence(timeout: 5),
+                      "EV label should be visible on meter screen")
     }
 
     // MARK: - Scene Preview
@@ -150,8 +152,8 @@ final class ZrnoUITests: XCTestCase {
                       "Profile list should show 'Cameras' title")
 
         // Default profile should be listed
-        XCTAssertTrue(app.staticTexts["35mm Camera"].waitForExistence(timeout: 2),
-                      "Default '35mm Camera' profile should be visible")
+        XCTAssertTrue(app.staticTexts["Mamiya 7"].waitForExistence(timeout: 2),
+                      "Default 'Mamiya 7' profile should be visible")
 
         app.swipeDown()
     }
@@ -173,6 +175,107 @@ final class ZrnoUITests: XCTestCase {
                       "Settings sheet should show 'Settings' title")
 
         app.swipeDown()
+    }
+
+    @MainActor
+    func testSettingsShowsAppearanceSection() throws {
+        let settingsButton = app.buttons["settingsButton"]
+        guard settingsButton.waitForExistence(timeout: 5) else {
+            XCTFail("Settings button not found")
+            return
+        }
+        settingsButton.tap()
+
+        guard app.staticTexts["Settings"].waitForExistence(timeout: 3) else {
+            XCTFail("Settings sheet didn't appear")
+            return
+        }
+
+        // Appearance mode options should exist
+        XCTAssertTrue(app.staticTexts["System"].waitForExistence(timeout: 2),
+                      "System appearance option should be visible")
+        XCTAssertTrue(app.staticTexts["Light"].exists,
+                      "Light appearance option should be visible")
+        XCTAssertTrue(app.staticTexts["Dark"].exists,
+                      "Dark appearance option should be visible")
+
+        app.swipeDown()
+    }
+
+    @MainActor
+    func testSettingsShowsColorSchemeSection() throws {
+        let settingsButton = app.buttons["settingsButton"]
+        guard settingsButton.waitForExistence(timeout: 5) else {
+            XCTFail("Settings button not found")
+            return
+        }
+        settingsButton.tap()
+
+        guard app.staticTexts["Settings"].waitForExistence(timeout: 3) else {
+            XCTFail("Settings sheet didn't appear")
+            return
+        }
+
+        // Color scheme options
+        XCTAssertTrue(app.staticTexts["Noir"].waitForExistence(timeout: 2),
+                      "Noir color scheme should be visible")
+
+        app.swipeDown()
+    }
+
+    // MARK: - ZRNO Branding
+
+    @MainActor
+    func testZRNOBrandingVisible() throws {
+        let branding = app.staticTexts["ZRNO"]
+        XCTAssertTrue(branding.waitForExistence(timeout: 5),
+                      "ZRNO branding should be visible in top bar")
+    }
+
+    // MARK: - Compensation Dial
+
+    @MainActor
+    func testCompensationDialExists() throws {
+        let dial = app.otherElements["compensationDial"]
+        XCTAssertTrue(dial.waitForExistence(timeout: 5),
+                      "Compensation dial should be visible on meter screen")
+    }
+
+    @MainActor
+    func testCompensationLabelExists() throws {
+        let label = app.staticTexts["compensationLabel"]
+        XCTAssertTrue(label.waitForExistence(timeout: 5),
+                      "Compensation label should be visible")
+        XCTAssertEqual(label.label, "±0",
+                       "Initial compensation should be ±0")
+    }
+
+    @MainActor
+    func testCompensationDialSwipeChangesValue() throws {
+        let dial = app.otherElements["compensationDial"]
+        guard dial.waitForExistence(timeout: 5) else {
+            XCTFail("Compensation dial not found")
+            return
+        }
+
+        let label = app.staticTexts["compensationLabel"]
+        guard label.waitForExistence(timeout: 3) else {
+            XCTFail("Compensation label not found")
+            return
+        }
+
+        let initialValue = label.label
+
+        // Drag from center to the left (increases compensation toward +)
+        let start = dial.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let end = dial.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: end)
+
+        // Wait for value to update
+        Thread.sleep(forTimeInterval: 0.5)
+
+        XCTAssertNotEqual(label.label, initialValue,
+                          "Compensation value should change after drag")
     }
 
     // MARK: - Launch Performance

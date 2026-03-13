@@ -143,7 +143,7 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
     // MARK: - Recommendation
 
     func updateRecommendation(for profile: CameraProfile, force: Bool = false) {
-        let adjustedEV = measuredEV + profile.exposureCompensation
+        let adjustedEV = measuredEV - profile.exposureCompensation
 
         // Debounce: skip if EV hasn't changed enough (unless forced by user action)
         if !force && abs(adjustedEV - lastRecommendationEV) < recommendationThreshold {
@@ -158,7 +158,7 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
             let result = ExposureCalculator.bestExposure(
                 ev100: measuredEV,
                 filmISO: profile.filmISO,
-                availableApertures: profile.sortedApertures,
+                availableApertures: profile.activeApertures,
                 availableShutterSpeeds: profile.sortedShutterSpeeds,
                 compensation: profile.exposureCompensation,
                 calibration: calibrate
@@ -167,7 +167,7 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
             recommendedShutterSpeed = result.shutterSpeed
 
         case .aperturePriority:
-            let locked = lockedAperture ?? profile.sortedApertures.first ?? 5.6
+            let locked = lockedAperture ?? profile.activeApertures.first ?? 5.6
             lockedAperture = locked
             recommendedAperture = locked
             // Use calibrated speed for the calculation
@@ -188,14 +188,14 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
                 forShutterSpeed: actualSpeed, ev100: adjustedEV, filmISO: profile.filmISO
             )
             recommendedAperture = ExposureCalculator.nearestValue(
-                to: idealAperture, in: profile.sortedApertures
+                to: idealAperture, in: profile.activeApertures
             ) ?? idealAperture
         }
 
         exposureCombinations = ExposureCalculator.allCombinations(
             ev100: measuredEV,
             filmISO: profile.filmISO,
-            availableApertures: profile.sortedApertures,
+            availableApertures: profile.activeApertures,
             availableShutterSpeeds: profile.sortedShutterSpeeds,
             compensation: profile.exposureCompensation,
             calibration: calibrate
@@ -230,6 +230,16 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
 
     func setLockedShutterSpeed(_ value: Double) {
         lockedShutterSpeed = value
+    }
+
+    // MARK: - Focal Length Auto-Select
+
+    func selectClosestCamera(toFocalLength targetMM: Int) {
+        guard !availableCameras.isEmpty else { return }
+        guard let closest = availableCameras.min(by: {
+            abs($0.focalLength - targetMM) < abs($1.focalLength - targetMM)
+        }), closest.id != activeCameraID else { return }
+        switchCamera(to: closest)
     }
 
     // MARK: - Camera Discovery
@@ -381,14 +391,42 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
 
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
+        // Apply orientation so portrait frames are upright
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+            .oriented(.right)
 
-        // Downscale + high-contrast monochrome for the scene preview window
-        let scale: CGFloat = 0.2
-        let scaled = ciImage
-            .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        // Center-crop to 4:3, downscale to 48x36 for a pixelated preview
+        let extent = ciImage.extent
+        let targetAspect: CGFloat = 4.0 / 3.0
+        let sourceAspect = extent.width / extent.height
+        let cropW: CGFloat
+        let cropH: CGFloat
+        if sourceAspect > targetAspect {
+            cropH = extent.height
+            cropW = cropH * targetAspect
+        } else {
+            cropW = extent.width
+            cropH = cropW / targetAspect
+        }
+        let cropRect = CGRect(
+            x: (extent.width - cropW) / 2,
+            y: (extent.height - cropH) / 2,
+            width: cropW,
+            height: cropH
+        )
+        let cropped = ciImage.cropped(to: cropRect)
+            .transformed(by: CGAffineTransform(
+                translationX: -cropRect.origin.x,
+                y: -cropRect.origin.y
+            ))
 
-        // Convert to grayscale with high contrast so bright/dark areas are clearly visible
+        let targetW: CGFloat = 48
+        let scaleX = targetW / cropW
+        let scaleY = (targetW / targetAspect) / cropH
+        let scaled = cropped
+            .transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+
+        // High-contrast monochrome
         let mono = scaled
             .applyingFilter("CIPhotoEffectNoir")
             .applyingFilter("CIColorControls", parameters: [
@@ -397,8 +435,8 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
                 "inputSaturation": 0.0
             ])
 
-        let extent = mono.extent
-        guard let cgImage = ciContext.createCGImage(mono, from: extent) else { return }
+        let monoExtent = mono.extent
+        guard let cgImage = ciContext.createCGImage(mono, from: monoExtent) else { return }
 
         // Build histogram from the scaled grayscale
         let histogram = self.buildHistogram(from: pixelBuffer)
@@ -538,10 +576,9 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
     }
 
     private func generateSimulatorPreview() {
-        let size = CGSize(width: 120, height: 160)
+        let size = CGSize(width: 48, height: 36)
         let renderer = UIGraphicsImageRenderer(size: size)
         let uiImage = renderer.image { ctx in
-            // Dark gradient simulating a scene
             let colors = [
                 UIColor(white: 0.15, alpha: 1).cgColor,
                 UIColor(white: 0.35, alpha: 1).cgColor,

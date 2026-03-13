@@ -7,96 +7,139 @@ struct CompensationDialView: View {
     // ±3 EV in 1/3 stop increments
     private let range: ClosedRange<Double> = -3.0...3.0
     private let step: Double = 1.0 / 3.0
-    private let tickSpacing: CGFloat = 18
+    private let tickSpacing: CGFloat = 28
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .light)
-
-    @State private var dragAccumulator: CGFloat = 0
-    @State private var lastSnapped: Double = 0
 
     private var tickCount: Int {
         Int((range.upperBound - range.lowerBound) / step) + 1
     }
 
-    /// Pixel offset for the tick strip so the current compensation is centered.
-    private func stripOffset(containerWidth: CGFloat) -> CGFloat {
-        let center = containerWidth / 2
-        let zeroPosition = CGFloat((0 - range.lowerBound) / step) * tickSpacing
-        let compPosition = CGFloat((compensation - range.lowerBound) / step) * tickSpacing
-        return center - compPosition + dragAccumulator
+    /// Total width of the tick strip
+    private var stripWidth: CGFloat {
+        CGFloat(tickCount - 1) * tickSpacing
+    }
+
+    // Drag state
+    @State private var baseOffset: CGFloat = 0
+    @State private var dragDelta: CGFloat = 0
+    @State private var isDragging = false
+
+    /// Current scroll offset combining base + drag
+    private var currentOffset: CGFloat {
+        baseOffset + dragDelta
+    }
+
+    /// Convert a compensation value to an offset (points from center)
+    private func offset(for value: Double) -> CGFloat {
+        -CGFloat((value - range.lowerBound) / step) * tickSpacing
+    }
+
+    /// Convert an offset to a compensation value, clamped and quantized to 1/3 stops
+    private func value(for offset: CGFloat) -> Double {
+        let rawTick = -offset / tickSpacing
+        let rawValue = range.lowerBound + rawTick * step
+        let clamped = min(max(rawValue, range.lowerBound), range.upperBound)
+        return (clamped * 3).rounded() / 3
+    }
+
+    /// Clamp offset so it can't scroll past the range
+    private func clampedOffset(_ raw: CGFloat) -> CGFloat {
+        let minOffset = offset(for: range.upperBound) // most negative
+        let maxOffset = offset(for: range.lowerBound) // most positive (zero)
+        return min(max(raw, minOffset), maxOffset)
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            // Current value
+        VStack(spacing: 16) {
+            // Current value label
             Text(formattedCompensation)
-                .font(.system(size: 16, weight: .medium, design: .monospaced))
+                .font(.system(size: 14, weight: .medium, design: .monospaced))
                 .foregroundStyle(compensation == 0 ? theme.secondaryColor : theme.accentColor)
                 .contentTransition(.numericText(value: compensation))
                 .animation(.easeInOut(duration: 0.15), value: compensation)
+                .accessibilityIdentifier("compensationLabel")
 
             // Dial
             GeometryReader { geo in
-                ZStack {
-                    // Center indicator
-                    Rectangle()
-                        .fill(theme.accentColor)
-                        .frame(width: 2, height: 28)
+                let centerX = geo.size.width / 2
 
-                    // Tick strip — positioned via offset, dragged directly
+                ZStack(alignment: .topLeading) {
+                    // Invisible touch target covering the full area
+                    Color.clear
+                        .contentShape(Rectangle())
+
+                    // Tick strip
                     HStack(spacing: 0) {
                         ForEach(0..<tickCount, id: \.self) { i in
-                            let value = range.lowerBound + Double(i) * step
-                            let isWhole = abs(value.rounded() - value) < 0.01
-                            let isZero = abs(value) < 0.01
+                            let val = range.lowerBound + Double(i) * step
+                            let isWhole = abs(val.rounded() - val) < 0.01
+                            let isZero = abs(val) < 0.01
 
-                            VStack(spacing: 2) {
+                            ZStack(alignment: .bottom) {
                                 Rectangle()
                                     .fill(theme.primaryColor.opacity(isWhole ? 0.6 : 0.25))
                                     .frame(width: isZero ? 2 : 1, height: isWhole ? 18 : 10)
-
+                            }
+                            .frame(width: tickSpacing, height: 18)
+                            .overlay(alignment: .bottom) {
                                 if isWhole {
-                                    Text(wholeStopLabel(value))
+                                    Text(wholeStopLabel(val))
                                         .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                        .foregroundStyle(theme.primaryColor.opacity(0.35))
+                                        .foregroundStyle(theme.accentColor)
+                                        .offset(y: 14)
                                 }
                             }
-                            .frame(width: tickSpacing)
                         }
                     }
-                    .offset(x: stripOffset(containerWidth: geo.size.width))
+                    .offset(x: currentOffset + centerX - tickSpacing / 2)
+
+                    // Center indicator line (fixed at center, same height as whole-stop ticks)
+                    Rectangle()
+                        .fill(theme.accentColor)
+                        .frame(width: 2, height: 18)
+                        .offset(x: centerX - 1)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 1)
-                        .onChanged { value in
-                            dragAccumulator = value.translation.width
-                            let stepsFromDrag = Double(-dragAccumulator) / Double(tickSpacing)
-                            let snapped = (round(stepsFromDrag * 3) / 3)
-                            let newValue = min(max(lastSnapped + snapped, range.lowerBound), range.upperBound)
-                            let quantized = (newValue * 3).rounded() / 3
-                            if abs(quantized - compensation) > 0.01 {
+                        .onChanged { gesture in
+                            isDragging = true
+                            let raw = baseOffset + gesture.translation.width
+                            dragDelta = clampedOffset(raw) - baseOffset
+                            let newValue = value(for: clampedOffset(raw))
+                            if abs(newValue - compensation) > 0.01 {
                                 feedbackGenerator.impactOccurred()
-                                compensation = quantized
+                                compensation = newValue
                             }
                         }
-                        .onEnded { _ in
-                            lastSnapped = compensation
-                            dragAccumulator = 0
+                        .onEnded { gesture in
+                            let raw = baseOffset + gesture.translation.width
+                            baseOffset = clampedOffset(raw)
+                            dragDelta = 0
+                            let snapped = value(for: baseOffset)
+                            compensation = snapped
+                            withAnimation(.easeOut(duration: 0.15)) {
+                                baseOffset = offset(for: snapped)
+                            }
+                            isDragging = false
                         }
                 )
             }
             .frame(height: 36)
             .clipped()
         }
-        .frame(height: 60)
+        .frame(height: 64)
         .padding(.horizontal, 40)
+        .accessibilityIdentifier("compensationDial")
         .onAppear {
-            lastSnapped = compensation
+            baseOffset = offset(for: compensation)
         }
         .onChange(of: compensation) { _, newValue in
-            // Keep lastSnapped in sync for external changes
-            lastSnapped = newValue
+            if !isDragging {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    baseOffset = offset(for: newValue)
+                }
+            }
         }
     }
 

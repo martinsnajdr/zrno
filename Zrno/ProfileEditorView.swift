@@ -4,52 +4,127 @@ import SwiftData
 struct ProfileEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     let profile: CameraProfile?
 
     @State private var name: String = ""
     @State private var filmISO: Int = 400
-    @State private var selectedApertures: Set<Double> = [2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0]
     @State private var selectedShutterSpeeds: Set<Double> = []
     @State private var compensation: Double = 0.0
     @State private var calibrationEntries: [Double: String] = [:] // nominal speed → actual reciprocal text
+    @State private var showAddLens = false
+    @State private var editingLens: Lens?
 
-    private let standardApertures: [Double] = ExposureCalculator.standardApertures
     private let standardShutterSpeeds: [Double] = ExposureCalculator.standardShutterSpeeds
 
     private var isEditing: Bool { profile != nil }
 
+    private var sortedLenses: [Lens] {
+        (profile?.lenses ?? []).sorted { $0.focalLength < $1.focalLength }
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Camera Name") {
+            List {
+                Section {
                     TextField("e.g. Leica M6", text: $name)
-                        .font(.system(size: 17, weight: .regular, design: .rounded))
-                }
-
-                Section("Film ISO") {
-                    Picker("ISO", selection: $filmISO) {
-                        ForEach(ExposureCalculator.standardISOs, id: \.self) { iso in
-                            Text("ISO \(iso)").tag(iso)
-                        }
-                    }
-                    .pickerStyle(.menu)
+                        .font(.system(size: 15, weight: .regular, design: .monospaced))
+                        .foregroundStyle(theme.primaryColor)
+                        .listRowBackground(theme.primaryColor.opacity(0.06))
+                } header: {
+                    Text("Camera Name")
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(theme.secondaryColor)
                 }
 
                 Section {
-                    apertureGrid
+                    Picker("ISO", selection: $filmISO) {
+                        ForEach(ExposureCalculator.standardISOs, id: \.self) { iso in
+                            Text("ISO \(iso)")
+                                .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                .tag(iso)
+                        }
+                    }
+                    .font(.system(size: 15, weight: .regular, design: .monospaced))
+                    .foregroundStyle(theme.primaryColor)
+                    .pickerStyle(.menu)
+                    .listRowBackground(theme.primaryColor.opacity(0.06))
                 } header: {
-                    Text("Available Apertures")
-                } footer: {
-                    Text("Tap to toggle. Select the f-stops your lens has.")
+                    Text("Film ISO")
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(theme.secondaryColor)
+                }
+
+                if isEditing {
+                    Section {
+                        ForEach(sortedLenses) { lens in
+                            Button {
+                                editingLens = lens
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(lens.name)
+                                            .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                            .foregroundStyle(theme.primaryColor)
+                                        Text("\(lens.focalLength)mm · \(lens.apertures.count) apertures")
+                                            .font(.system(size: 13, weight: .regular, design: .monospaced))
+                                            .foregroundStyle(theme.secondaryColor)
+                                    }
+                                    Spacer()
+                                    if lens.isSelected {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundStyle(theme.primaryColor)
+                                    }
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(theme.secondaryColor)
+                                }
+                            }
+                            .listRowBackground(theme.primaryColor.opacity(0.06))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    if let profile {
+                                        profile.lenses.removeAll { $0.id == lens.id }
+                                        modelContext.delete(lens)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                        }
+
+                        Button {
+                            showAddLens = true
+                        } label: {
+                            Label("Add Lens", systemImage: "plus")
+                                .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                .foregroundStyle(theme.primaryColor)
+                        }
+                        .listRowBackground(theme.primaryColor.opacity(0.06))
+                    } header: {
+                        Text("Lenses")
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(theme.secondaryColor)
+                    } footer: {
+                        Text("Each lens defines its own set of apertures. Tap to edit, swipe to delete.")
+                            .font(.system(size: 12, weight: .regular, design: .monospaced))
+                            .foregroundStyle(theme.secondaryColor)
+                    }
                 }
 
                 Section {
                     shutterSpeedGrid
+                        .listRowBackground(theme.primaryColor.opacity(0.06))
                 } header: {
                     Text("Available Shutter Speeds")
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(theme.secondaryColor)
                 } footer: {
                     Text("Select the shutter speeds your camera supports.")
+                        .font(.system(size: 12, weight: .regular, design: .monospaced))
+                        .foregroundStyle(theme.secondaryColor)
                 }
 
                 if !selectedShutterSpeeds.isEmpty {
@@ -57,52 +132,87 @@ struct ProfileEditorView: View {
                         calibrationList
                     } header: {
                         Text("Speed Calibration")
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(theme.secondaryColor)
                     } footer: {
                         Text("If a shutter speed differs from its marking, enter the actual measured value. E.g. if 1/125 actually exposes at 1/105, type 105.")
+                            .font(.system(size: 12, weight: .regular, design: .monospaced))
+                            .foregroundStyle(theme.secondaryColor)
                     }
                 }
             }
-            .navigationTitle(isEditing ? "Edit Camera" : "New Camera")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") { save() }
-                        .font(.system(size: 17, weight: .semibold))
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(theme.backgroundColor)
+            .navigationBarHidden(true)
+            .safeAreaInset(edge: .top) {
+                ZStack {
+                    Text(isEditing ? "EDIT CAMERA" : "NEW CAMERA")
+                        .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                        .tracking(4)
+                        .foregroundStyle(theme.primaryColor)
+
+                    HStack {
+                        Button { dismiss() } label: {
+                            Text("Cancel")
+                                .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                .foregroundStyle(theme.primaryColor)
+                                .padding(.horizontal, 16)
+                                .frame(height: 36)
+                                .background(
+                                    Capsule()
+                                        .fill(theme.primaryColor.opacity(theme.subtleOpacity))
+                                )
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer()
+
+                        Button { save() } label: {
+                            Text("Save")
+                                .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(theme.primaryColor)
+                                .padding(.horizontal, 16)
+                                .frame(height: 36)
+                                .background(
+                                    Capsule()
+                                        .fill(theme.primaryColor.opacity(theme.subtleOpacity))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.3 : 1.0)
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(theme.backgroundColor)
+                .overlay(alignment: .bottom) {
+                    LinearGradient(
+                        colors: [theme.backgroundColor, theme.backgroundColor.opacity(0)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 16)
+                    .offset(y: 16)
+                    .allowsHitTesting(false)
                 }
             }
             .onAppear { loadProfile() }
-        }
-        .tint(.primary)
-    }
-
-    // MARK: - Aperture Grid
-
-    private var apertureGrid: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 8) {
-            ForEach(standardApertures, id: \.self) { f in
-                Button {
-                    toggleAperture(f)
-                } label: {
-                    Text(ExposureCalculator.formatAperture(f))
-                        .font(.system(size: 14, weight: .medium, design: .monospaced))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(
-                            selectedApertures.contains(f)
-                                ? Color.primary.opacity(0.85)
-                                : Color(.systemGray5)
-                        )
-                        .foregroundStyle(selectedApertures.contains(f) ? Color(.systemBackground) : .primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+            .sheet(isPresented: $showAddLens) {
+                if let profile {
+                    LensEditorView(lens: nil, profile: profile)
                 }
-                .buttonStyle(.plain)
+            }
+            .sheet(item: $editingLens) { lens in
+                if let profile {
+                    LensEditorView(lens: lens, profile: profile)
+                }
             }
         }
-        .padding(.vertical, 4)
+        .tint(theme.primaryColor)
+        .presentationCornerRadius(16)
+        .presentationBackground(theme.backgroundColor)
     }
 
     // MARK: - Shutter Speed Grid
@@ -119,10 +229,10 @@ struct ProfileEditorView: View {
                         .padding(.vertical, 10)
                         .background(
                             selectedShutterSpeeds.contains(speed)
-                                ? Color.primary.opacity(0.85)
-                                : Color(.systemGray5)
+                                ? theme.primaryColor.opacity(0.85)
+                                : theme.primaryColor.opacity(0.06)
                         )
-                        .foregroundStyle(selectedShutterSpeeds.contains(speed) ? Color(.systemBackground) : .primary)
+                        .foregroundStyle(selectedShutterSpeeds.contains(speed) ? theme.backgroundColor : theme.primaryColor)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
@@ -138,25 +248,28 @@ struct ProfileEditorView: View {
             HStack {
                 Text(ExposureCalculator.formatShutterSpeed(speed))
                     .font(.system(size: 15, weight: .medium, design: .monospaced))
+                    .foregroundStyle(theme.primaryColor)
                     .frame(width: 70, alignment: .leading)
 
                 Image(systemName: "arrow.right")
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondaryColor)
 
                 HStack(spacing: 2) {
                     Text("1/")
                         .font(.system(size: 15, weight: .regular, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.secondaryColor)
                     TextField(
                         reciprocalPlaceholder(for: speed),
                         text: calibrationBinding(for: speed)
                     )
                     .font(.system(size: 15, weight: .regular, design: .monospaced))
+                    .foregroundStyle(theme.primaryColor)
                     .keyboardType(.numberPad)
                     .frame(width: 60)
                 }
             }
+            .listRowBackground(theme.primaryColor.opacity(0.06))
         }
     }
 
@@ -175,14 +288,6 @@ struct ProfileEditorView: View {
     }
 
     // MARK: - Actions
-
-    private func toggleAperture(_ f: Double) {
-        if selectedApertures.contains(f) {
-            selectedApertures.remove(f)
-        } else {
-            selectedApertures.insert(f)
-        }
-    }
 
     private func toggleShutterSpeed(_ speed: Double) {
         if selectedShutterSpeeds.contains(speed) {
@@ -205,7 +310,6 @@ struct ProfileEditorView: View {
         }
         name = profile.name
         filmISO = profile.filmISO
-        selectedApertures = Set(profile.apertures)
         selectedShutterSpeeds = Set(profile.shutterSpeeds)
         compensation = profile.exposureCompensation
         // Load calibration: convert actual speeds back to reciprocal text
@@ -243,14 +347,12 @@ struct ProfileEditorView: View {
         if let profile {
             profile.name = trimmedName
             profile.filmISO = filmISO
-            profile.apertures = Array(selectedApertures).sorted()
             profile.shutterSpeeds = Array(selectedShutterSpeeds).sorted()
             profile.exposureCompensation = compensation
             profile.shutterCalibration = calibration
         } else {
             let newProfile = CameraProfile(
                 name: trimmedName,
-                apertures: Array(selectedApertures).sorted(),
                 shutterSpeeds: Array(selectedShutterSpeeds).sorted(),
                 filmISO: filmISO,
                 exposureCompensation: compensation,

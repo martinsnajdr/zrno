@@ -24,8 +24,8 @@ struct HistogramView: View {
 
             context.fill(path, with: .linearGradient(
                 Gradient(colors: [
-                    theme.accentColor.opacity(0.35),
-                    theme.accentColor.opacity(0.1)
+                    theme.primaryColor.opacity(0.5),
+                    theme.primaryColor.opacity(0.08)
                 ]),
                 startPoint: CGPoint(x: 0, y: 0),
                 endPoint: CGPoint(x: 0, y: size.height)
@@ -43,7 +43,7 @@ struct HistogramView: View {
                     strokePath.addLine(to: point)
                 }
             }
-            context.stroke(strokePath, with: .color(theme.accentColor.opacity(0.6)), lineWidth: 1)
+            context.stroke(strokePath, with: .color(theme.primaryColor.opacity(0.8)), lineWidth: 1)
         }
     }
 }

@@ -2,35 +2,118 @@ import SwiftUI
 
 struct MeterView: View {
     @Environment(\.appTheme) private var theme
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(\.verticalSizeClass) private var vSizeClass
 
-    let ev: Double
     let aperture: Double
     let shutterSpeed: Double
     let iso: Int
-    let profileName: String
+    let measuredEV: Double
+    let focalLength: String
     @Binding var compensation: Double
     let meterMode: MeterMode
-    let focusPosition: Float
     let availableApertures: [Double]
     let availableShutterSpeeds: [Double]
+    let lenses: [Lens]
     let previewImage: CGImage?
     let histogramBins: [Float]
     @Binding var previewMode: PreviewMode
+    let activeCameraLabel: String
     let onISOTap: () -> Void
-    let onProfileTap: () -> Void
     let onApertureLock: () -> Void
     let onShutterLock: () -> Void
     let onApertureSelect: (Double) -> Void
     let onShutterSelect: (Double) -> Void
+    let onLensSelect: (Lens) -> Void
 
     private var isApertureLocked: Bool { meterMode == .aperturePriority }
     private var isShutterLocked: Bool { meterMode == .shutterPriority }
+    private var isLandscape: Bool { vSizeClass == .compact }
+
+    private var selectedLensName: String? {
+        lenses.first(where: { $0.isSelected })?.name
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer()
+        if isLandscape {
+            landscapeLayout
+        } else {
+            portraitLayout
+        }
+    }
 
-            // Aperture — tappable for priority lock
+    // MARK: - Portrait Layout
+
+    private var portraitLayout: some View {
+        VStack(spacing: 0) {
+            Spacer().frame(height: 80)
+
+            exposureControls
+
+            Spacer().frame(height: 20)
+
+            CompensationDialView(compensation: $compensation)
+
+            Spacer().frame(height: 12)
+
+            ScenePreviewView(
+                image: previewImage,
+                histogramBins: histogramBins,
+                previewMode: $previewMode
+            )
+            .padding(.horizontal, 20)
+
+            Spacer().frame(height: 12)
+
+            bottomBar
+                .padding(.bottom, 50)
+        }
+        .animation(.spring(duration: 0.4), value: aperture)
+        .animation(.spring(duration: 0.4), value: shutterSpeed)
+    }
+
+    // MARK: - Landscape Layout
+
+    private var landscapeLayout: some View {
+        HStack(spacing: 0) {
+            // Left: exposure readings + compensation
+            VStack(spacing: 0) {
+                Spacer()
+                exposureControls
+                Spacer().frame(height: 16)
+                CompensationDialView(compensation: $compensation)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+
+            // Right: preview + info
+            VStack(spacing: 0) {
+                Spacer()
+
+                ScenePreviewView(
+                    image: previewImage,
+                    histogramBins: histogramBins,
+                    previewMode: $previewMode
+                )
+
+                Spacer().frame(height: 16)
+
+                bottomBar
+
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.top, 8)
+        .animation(.spring(duration: 0.4), value: aperture)
+        .animation(.spring(duration: 0.4), value: shutterSpeed)
+    }
+
+    // MARK: - Shared Components
+
+    private var exposureControls: some View {
+        VStack(spacing: 0) {
+            // Aperture
             Button(action: onApertureLock) {
                 HStack(spacing: 6) {
                     if isApertureLocked {
@@ -39,14 +122,14 @@ struct MeterView: View {
                             .foregroundStyle(theme.accentColor)
                     }
                     Text(ExposureCalculator.formatAperture(aperture))
-                        .font(.system(size: 54, weight: .ultraLight, design: theme.design))
+                        .font(.system(size: 44, weight: .ultraLight, design: theme.design))
                         .foregroundStyle(isApertureLocked ? theme.primaryColor : theme.primaryColor.opacity(0.85))
                         .contentTransition(.numericText(value: aperture))
                 }
             }
+            .buttonStyle(.plain)
             .accessibilityIdentifier("apertureLabel")
 
-            // Aperture value picker (visible in aperture priority)
             if isApertureLocked {
                 PriorityValuePicker(
                     values: availableApertures,
@@ -58,25 +141,25 @@ struct MeterView: View {
                 .padding(.top, 4)
             }
 
-            Spacer().frame(height: 4)
+            Spacer().frame(height: 2)
 
-            // Shutter speed — tappable for priority lock
+            // Shutter speed
             Button(action: onShutterLock) {
                 HStack(spacing: 8) {
                     if isShutterLocked {
                         Image(systemName: "lock.fill")
-                            .font(.system(size: 18))
+                            .font(.system(size: 16))
                             .foregroundStyle(theme.accentColor)
                     }
                     Text(ExposureCalculator.formatShutterSpeed(shutterSpeed))
-                        .font(.system(size: 96, weight: .bold, design: theme.design))
+                        .font(.system(size: 72, weight: .bold, design: theme.design))
                         .foregroundStyle(theme.primaryColor)
                         .contentTransition(.numericText(value: shutterSpeed))
                 }
             }
+            .buttonStyle(.plain)
             .accessibilityIdentifier("shutterSpeedLabel")
 
-            // Shutter speed value picker (visible in shutter priority)
             if isShutterLocked {
                 PriorityValuePicker(
                     values: availableShutterSpeeds,
@@ -88,100 +171,86 @@ struct MeterView: View {
                 .padding(.top, 4)
             }
 
-            Spacer().frame(height: 16)
+            Spacer().frame(height: 8)
 
-            // EV + focus distance row
-            HStack(spacing: 16) {
-                Text("EV \(ExposureCalculator.formatEV(ev))")
-                    .font(.system(size: 22, weight: .medium, design: .monospaced))
+            // EV + focal length
+            HStack(spacing: 12) {
+                Text("EV \(ExposureCalculator.formatEV(measuredEV))")
+                    .font(.system(size: 13, weight: .regular, design: .monospaced))
                     .foregroundStyle(theme.secondaryColor)
-                    .contentTransition(.numericText(value: ev))
                     .accessibilityIdentifier("evLabel")
 
-                FocusIndicator(position: focusPosition, theme: theme)
+                if !focalLength.isEmpty {
+                    Text(focalLength)
+                        .font(.system(size: 13, weight: .regular, design: .monospaced))
+                        .foregroundStyle(theme.secondaryColor)
+                }
+            }
+        }
+    }
+
+    private var bottomBar: some View {
+        VStack(spacing: 8) {
+            // Camera info line
+            if !activeCameraLabel.isEmpty {
+                Text(activeCameraLabel)
+                    .font(.system(size: 11, weight: .regular, design: .monospaced))
+                    .foregroundStyle(theme.secondaryColor)
             }
 
-            Spacer().frame(height: 24)
-
-            // Exposure compensation dial
-            CompensationDialView(compensation: $compensation)
-
-            Spacer().frame(height: 20)
-
-            // Preview / Histogram — swipeable, replaces the old exposure table
-            ScenePreviewView(
-                image: previewImage,
-                histogramBins: histogramBins,
-                previewMode: $previewMode
-            )
-            .accessibilityIdentifier("scenePreview")
-
-            Spacer()
-
-            // Bottom bar — ISO and camera profile
-            HStack(spacing: 16) {
+            // ISO + selected lens name
+            HStack(spacing: 12) {
                 Button(action: onISOTap) {
                     Text("ISO \(iso)")
-                        .font(.system(size: 15, weight: .semibold, design: theme.design))
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
                         .foregroundStyle(theme.accentColor)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(theme.primaryColor.opacity(0.08), in: Capsule())
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .background(theme.primaryColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
                 }
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("isoButton")
 
-                Button(action: onProfileTap) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "camera")
-                            .font(.system(size: 12))
-                        Text(profileName)
-                            .font(.system(size: 15, weight: .medium, design: theme.design))
+                if let lensName = selectedLensName {
+                    Text(lensName)
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .foregroundStyle(theme.secondaryColor)
+                }
+            }
+
+            // Lens selector (swipeable) — show when multiple lenses
+            if lenses.count > 1 {
+                lensSelector
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var lensSelector: some View {
+        let sorted = lenses.sorted(by: { $0.focalLength < $1.focalLength })
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(sorted) { lens in
+                    Button {
+                        onLensSelect(lens)
+                    } label: {
+                        Text("\(lens.focalLength)mm")
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
+                            .foregroundStyle(
+                                lens.isSelected ? theme.accentColor : theme.secondaryColor
+                            )
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                lens.isSelected
+                                    ? theme.primaryColor.opacity(0.12)
+                                    : theme.primaryColor.opacity(0.04),
+                                in: RoundedRectangle(cornerRadius: 4)
+                            )
                     }
-                    .foregroundStyle(theme.secondaryColor)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(theme.primaryColor.opacity(0.05), in: Capsule())
-                }
-                .accessibilityIdentifier("profileButton")
-            }
-            .padding(.bottom, 50)
-        }
-        .animation(.spring(duration: 0.4), value: ev)
-    }
-}
-
-// MARK: - Focus Indicator
-
-private struct FocusIndicator: View {
-    let position: Float // 0.0 = near, 1.0 = far
-    let theme: AppTheme
-
-    private var label: String {
-        switch position {
-        case 0.0..<0.15: return "●"
-        case 0.15..<0.4: return "◐"
-        case 0.4..<0.75: return "○"
-        default: return "∞"
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 4) {
-            // Small focus distance bar
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(theme.primaryColor.opacity(0.1))
-                    Capsule()
-                        .fill(theme.primaryColor.opacity(0.3))
-                        .frame(width: max(4, geo.size.width * CGFloat(position)))
+                    .buttonStyle(.plain)
                 }
             }
-            .frame(width: 30, height: 4)
-
-            Text(label)
-                .font(.system(size: 14, weight: .regular))
-                .foregroundStyle(theme.secondaryColor)
         }
     }
 }
@@ -190,25 +259,31 @@ private struct FocusIndicator: View {
     ZStack {
         Color.black.ignoresSafeArea()
         MeterView(
-            ev: 12.3,
             aperture: 5.6,
             shutterSpeed: 1.0 / 125,
             iso: 400,
-            profileName: "Leica M6",
+            measuredEV: 12.3,
+            focalLength: "80mm",
             compensation: .constant(0.0),
             meterMode: .auto,
-            focusPosition: 0.7,
             availableApertures: [2.8, 4.0, 5.6, 8.0, 11.0, 16.0],
             availableShutterSpeeds: [1.0/500, 1.0/250, 1.0/125, 1.0/60, 1.0/30, 1.0/15],
+            lenses: [],
             previewImage: nil,
-            histogramBins: Array(repeating: Float(0), count: 256),
-            previewMode: .constant(.hidden),
+            histogramBins: (0..<256).map { i in
+                let center: Float = 128
+                let spread: Float = 45
+                let dist = Float(i) - center
+                return exp(-(dist * dist) / (2 * spread * spread))
+            },
+            previewMode: .constant(.histogram),
+            activeCameraLabel: "26mm",
             onISOTap: {},
-            onProfileTap: {},
             onApertureLock: {},
             onShutterLock: {},
             onApertureSelect: { _ in },
-            onShutterSelect: { _ in }
+            onShutterSelect: { _ in },
+            onLensSelect: { _ in }
         )
     }
     .preferredColorScheme(.dark)

@@ -1,10 +1,9 @@
 import Foundation
 
-/// The three states of the scene preview window, cycled by horizontal swipe.
+/// The two states of the scene preview window, cycled by horizontal swipe or tap.
 enum PreviewMode: Int, CaseIterable, Codable {
-    case hidden = 0
+    case histogram = 0
     case camera = 1
-    case histogram = 2
 
     var next: PreviewMode {
         let all = PreviewMode.allCases

@@ -6,97 +6,204 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section("Color Scheme") {
-                    ForEach(ThemeScheme.allCases) { scheme in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                theme.scheme = scheme
-                            }
-                        } label: {
-                            HStack(spacing: 14) {
-                                HStack(spacing: 0) {
-                                    Rectangle()
-                                        .fill(scheme.backgroundColor)
-                                    Rectangle()
-                                        .fill(scheme.primaryColor)
+            ScrollView {
+                VStack(spacing: 24) {
+                    settingsSection("Appearance") {
+                        ForEach(AppearanceMode.allCases) { mode in
+                            settingsRow(isLast: mode == AppearanceMode.allCases.last) {
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        theme.appearanceMode = mode
+                                    }
+                                } label: {
+                                    HStack {
+                                        Text(mode.displayName)
+                                            .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                            .foregroundStyle(theme.primaryColor)
+                                        Spacer()
+                                        if theme.appearanceMode == mode {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 13, weight: .semibold))
+                                                .foregroundStyle(theme.primaryColor)
+                                        }
+                                    }
+                                    .contentShape(Rectangle())
                                 }
-                                .frame(width: 44, height: 28)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(.quaternary, lineWidth: 1)
-                                )
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
 
-                                Text(scheme.displayName)
-                                    .font(.system(size: 17, weight: .regular, design: .rounded))
-                                    .foregroundStyle(.primary)
+                    settingsSection("Color Scheme") {
+                        ForEach(ThemeScheme.allCases) { scheme in
+                            settingsRow(isLast: scheme == ThemeScheme.allCases.last) {
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        theme.scheme = scheme
+                                    }
+                                } label: {
+                                    HStack(spacing: 14) {
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(scheme.primaryColor(isDark: theme.effectiveIsDark))
+                                            .frame(width: 24, height: 24)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 4)
+                                                    .stroke(theme.primaryColor.opacity(0.1), lineWidth: 1)
+                                            )
 
+                                        Text(scheme.displayName)
+                                            .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                            .foregroundStyle(theme.primaryColor)
+
+                                        Spacer()
+
+                                        if theme.scheme == scheme {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 13, weight: .semibold))
+                                                .foregroundStyle(theme.primaryColor)
+                                        }
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    settingsSection("Font") {
+                        ForEach(ThemeFontDesign.allCases) { fontDesign in
+                            settingsRow(isLast: fontDesign == ThemeFontDesign.allCases.last) {
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        theme.fontDesign = fontDesign
+                                    }
+                                } label: {
+                                    HStack(spacing: 14) {
+                                        Text("f/2.8")
+                                            .font(.system(size: 16, weight: .medium, design: fontDesign.swiftUIDesign))
+                                            .foregroundStyle(theme.primaryColor)
+                                            .frame(width: 56, alignment: .leading)
+
+                                        Text(fontDesign.displayName)
+                                            .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                            .foregroundStyle(theme.primaryColor)
+
+                                        Spacer()
+
+                                        if theme.fontDesign == fontDesign {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 13, weight: .semibold))
+                                                .foregroundStyle(theme.primaryColor)
+                                        }
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    settingsSection("About") {
+                        settingsRow(isLast: true) {
+                            HStack {
+                                Text("Zrno")
+                                    .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(theme.primaryColor)
                                 Spacer()
-
-                                if theme.scheme == scheme {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(.primary)
-                                }
+                                Text("Light Meter for Film")
+                                    .font(.system(size: 13, weight: .regular, design: .monospaced))
+                                    .foregroundStyle(theme.secondaryColor)
                             }
-                            .contentShape(Rectangle())
                         }
                     }
                 }
-
-                Section("Font") {
-                    ForEach(ThemeFontDesign.allCases) { fontDesign in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                theme.fontDesign = fontDesign
-                            }
-                        } label: {
-                            HStack(spacing: 14) {
-                                Text("f/2.8")
-                                    .font(.system(size: 18, weight: .medium, design: fontDesign.swiftUIDesign))
-                                    .foregroundStyle(.primary)
-                                    .frame(width: 60, alignment: .leading)
-
-                                Text(fontDesign.displayName)
-                                    .font(.system(size: 17, weight: .regular, design: .rounded))
-                                    .foregroundStyle(.primary)
-
-                                Spacer()
-
-                                if theme.fontDesign == fontDesign {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(.primary)
-                                }
-                            }
-                            .contentShape(Rectangle())
-                        }
-                    }
-                }
-
-                Section {
-                    HStack {
-                        Text("Zrno")
-                            .font(.system(size: 17, weight: .medium, design: .rounded))
-                        Spacer()
-                        Text("Light Meter for Film")
-                            .font(.system(size: 15, weight: .regular, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    Text("About")
-                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
             }
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+            .background(theme.backgroundColor)
+            .navigationBarHidden(true)
+            .safeAreaInset(edge: .top) {
+                ZStack {
+                    Text("SETTINGS")
+                        .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                        .tracking(4)
+                        .foregroundStyle(theme.primaryColor)
+
+                    HStack {
+                        Spacer()
+                        Button { dismiss() } label: {
+                            Text("Done")
+                                .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(theme.primaryColor)
+                                .padding(.horizontal, 16)
+                                .frame(height: 36)
+                                .background(
+                                    Capsule()
+                                        .fill(theme.primaryColor.opacity(theme.subtleOpacity))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(theme.backgroundColor)
+                .overlay(alignment: .bottom) {
+                    LinearGradient(
+                        colors: [theme.backgroundColor, theme.backgroundColor.opacity(0)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 16)
+                    .offset(y: 16)
+                    .allowsHitTesting(false)
                 }
             }
         }
-        .tint(.primary)
+        .tint(theme.primaryColor)
+        .presentationCornerRadius(16)
+        .presentationBackground(theme.backgroundColor)
+    }
+
+    private func settingsSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(theme.secondaryColor)
+                .padding(.leading, 4)
+
+            VStack(spacing: 0) {
+                content()
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(theme.primaryColor.opacity(theme.subtleOpacity))
+            )
+        }
+    }
+
+    private func settingsRow<Content: View>(isLast: Bool = false, @ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            content()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+            if !isLast {
+                Rectangle()
+                    .fill(theme.primaryColor.opacity(0.08))
+                    .frame(height: 0.5)
+                    .padding(.leading, 14)
+            }
+        }
     }
 }
+
+#Preview {
+    SettingsView()
+        .preferredColorScheme(.dark)
+}
+
+
+
+

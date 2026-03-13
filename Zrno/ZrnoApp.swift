@@ -13,6 +13,7 @@ struct zrnoApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             CameraProfile.self,
+            Lens.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

@@ -117,10 +117,11 @@ struct ExposureCalculatorBestExposureTests {
             availableShutterSpeeds: shutterSpeeds,
             compensation: 1.0
         )
-        // +1 EV compensation should result in faster shutter or smaller aperture
-        let normalEV = log2(normal.aperture * normal.aperture / normal.shutterSpeed)
-        let overEV = log2(overexposed.aperture * overexposed.aperture / overexposed.shutterSpeed)
-        #expect(overEV >= normalEV - 0.1) // Should be same or higher
+        // +1 comp = overexpose = more light = slower shutter or wider aperture
+        // The selected shutter/aperture combo should let MORE light in
+        let normalExposure = normal.shutterSpeed / (normal.aperture * normal.aperture)
+        let overExposure = overexposed.shutterSpeed / (overexposed.aperture * overexposed.aperture)
+        #expect(overExposure >= normalExposure * 0.9) // Should let in same or more light
     }
 
     @Test func allCombinationsReturnsValidPairs() {
@@ -321,21 +322,18 @@ struct PreviewModeTests {
 
     @Test func allCasesOrder() {
         let all = PreviewMode.allCases
-        #expect(all.count == 3)
-        #expect(all[0] == .hidden)
+        #expect(all.count == 2)
+        #expect(all[0] == .histogram)
         #expect(all[1] == .camera)
-        #expect(all[2] == .histogram)
     }
 
     @Test func nextCyclesForward() {
-        #expect(PreviewMode.hidden.next == .camera)
+        #expect(PreviewMode.histogram.next == .camera)
         #expect(PreviewMode.camera.next == .histogram)
-        #expect(PreviewMode.histogram.next == .hidden)
     }
 
     @Test func previousCyclesBackward() {
-        #expect(PreviewMode.hidden.previous == .histogram)
-        #expect(PreviewMode.camera.previous == .hidden)
+        #expect(PreviewMode.camera.previous == .histogram)
         #expect(PreviewMode.histogram.previous == .camera)
     }
 
@@ -352,9 +350,8 @@ struct PreviewModeTests {
     }
 
     @Test func rawValues() {
-        #expect(PreviewMode.hidden.rawValue == 0)
+        #expect(PreviewMode.histogram.rawValue == 0)
         #expect(PreviewMode.camera.rawValue == 1)
-        #expect(PreviewMode.histogram.rawValue == 2)
     }
 
     @Test func encodeDecode() throws {
@@ -702,36 +699,48 @@ struct LightMeterServiceDebounceTests {
 
 struct ExposureCompensationTests {
 
-    @Test func compensationShiftsExposure() {
-        let apertures = [2.8, 4.0, 5.6, 8.0, 11.0, 16.0]
+    @Test func overexposeGivesSlowerShutter() {
+        // +1 comp = overexpose = lower effective EV = LONGER shutter time
+        let apertures = [5.6]
         let shutterSpeeds = [1.0/1000, 1.0/500, 1.0/250, 1.0/125, 1.0/60, 1.0/30, 1.0/15]
 
         let normal = ExposureCalculator.bestExposure(
-            ev100: 12.0, filmISO: 400,
+            ev100: 12.0, filmISO: 100,
             availableApertures: apertures,
             availableShutterSpeeds: shutterSpeeds,
             compensation: 0.0
         )
-        let plusOne = ExposureCalculator.bestExposure(
-            ev100: 12.0, filmISO: 400,
+        let overexposed = ExposureCalculator.bestExposure(
+            ev100: 12.0, filmISO: 100,
             availableApertures: apertures,
             availableShutterSpeeds: shutterSpeeds,
             compensation: 1.0
         )
-        let minusOne = ExposureCalculator.bestExposure(
-            ev100: 12.0, filmISO: 400,
+
+        // +1 comp → shutter should be longer (larger number)
+        #expect(overexposed.shutterSpeed >= normal.shutterSpeed)
+    }
+
+    @Test func underexposeGivesFasterShutter() {
+        // -1 comp = underexpose = higher effective EV = SHORTER shutter time
+        let apertures = [5.6]
+        let shutterSpeeds = [1.0/1000, 1.0/500, 1.0/250, 1.0/125, 1.0/60, 1.0/30, 1.0/15]
+
+        let normal = ExposureCalculator.bestExposure(
+            ev100: 12.0, filmISO: 100,
+            availableApertures: apertures,
+            availableShutterSpeeds: shutterSpeeds,
+            compensation: 0.0
+        )
+        let underexposed = ExposureCalculator.bestExposure(
+            ev100: 12.0, filmISO: 100,
             availableApertures: apertures,
             availableShutterSpeeds: shutterSpeeds,
             compensation: -1.0
         )
 
-        // +1 compensation => brighter => larger EV => faster shutter or smaller aperture
-        let normalEV = log2(normal.aperture * normal.aperture / normal.shutterSpeed)
-        let plusEV = log2(plusOne.aperture * plusOne.aperture / plusOne.shutterSpeed)
-        let minusEV = log2(minusOne.aperture * minusOne.aperture / minusOne.shutterSpeed)
-
-        #expect(plusEV > normalEV - 0.5)
-        #expect(minusEV < normalEV + 0.5)
+        // -1 comp → shutter should be shorter (smaller number)
+        #expect(underexposed.shutterSpeed <= normal.shutterSpeed)
     }
 
     @Test func compensationAffectsRecommendation() {
@@ -740,29 +749,31 @@ struct ExposureCompensationTests {
 
         let profile = CameraProfile(
             name: "Test",
-            apertures: [2.8, 4.0, 5.6, 8.0, 11.0, 16.0],
+            apertures: [5.6],
             shutterSpeeds: [1.0/1000, 1.0/500, 1.0/250, 1.0/125, 1.0/60, 1.0/30],
-            filmISO: 400
+            filmISO: 100
         )
 
         // Get baseline recommendation
         profile.exposureCompensation = 0.0
         meter.updateRecommendation(for: profile, force: true)
         let baseShutter = meter.recommendedShutterSpeed
-        let baseAperture = meter.recommendedAperture
 
-        // Apply +2 EV compensation — should pick brighter exposure
+        // Apply +2 EV compensation — overexpose — should get SLOWER shutter
         profile.exposureCompensation = 2.0
         meter.updateRecommendation(for: profile, force: true)
-        let compShutter = meter.recommendedShutterSpeed
-        let compAperture = meter.recommendedAperture
+        let overShutter = meter.recommendedShutterSpeed
 
-        let baseExposure = log2(baseAperture * baseAperture / baseShutter)
-        let compExposure = log2(compAperture * compAperture / compShutter)
+        // +2 comp = overexpose = longer shutter
+        #expect(overShutter >= baseShutter)
 
-        // +2 compensation shifts effective EV up, meaning camera settings
-        // should reflect a higher EV (faster shutter or smaller aperture)
-        #expect(compExposure > baseExposure - 0.5)
+        // Apply -2 EV compensation — underexpose — should get FASTER shutter
+        profile.exposureCompensation = -2.0
+        meter.updateRecommendation(for: profile, force: true)
+        let underShutter = meter.recommendedShutterSpeed
+
+        // -2 comp = underexpose = shorter shutter
+        #expect(underShutter <= baseShutter)
     }
 
     @Test func compensationZeroMatchesNoCompensation() {
@@ -808,6 +819,58 @@ struct ExposureCompensationTests {
         // Should produce more than one distinct result across ±3 EV
         #expect(results.count > 1)
     }
+
+    @Test func allCombinationsCompensationDirection() {
+        // +1 comp should produce combos with more light (slower shutters)
+        let apertures = [5.6]
+        let shutterSpeeds = [1.0/500, 1.0/250, 1.0/125, 1.0/60, 1.0/30, 1.0/15]
+
+        let normal = ExposureCalculator.allCombinations(
+            ev100: 12.0, filmISO: 100,
+            availableApertures: apertures,
+            availableShutterSpeeds: shutterSpeeds,
+            compensation: 0.0
+        )
+        let overexposed = ExposureCalculator.allCombinations(
+            ev100: 12.0, filmISO: 100,
+            availableApertures: apertures,
+            availableShutterSpeeds: shutterSpeeds,
+            compensation: 1.0
+        )
+
+        // Both should have results for f/5.6
+        guard let normalCombo = normal.first, let overCombo = overexposed.first else {
+            #expect(Bool(false), "Expected at least one combo each")
+            return
+        }
+        // +1 comp → slower shutter (larger number)
+        #expect(overCombo.shutterSpeed >= normalCombo.shutterSpeed)
+    }
+
+    @Test func compensationInAperturePriority() {
+        let meter = LightMeterService()
+        meter.measuredEV = 12.0
+        meter.toggleAperturePriority(currentAperture: 5.6)
+
+        let profile = CameraProfile(
+            name: "Test",
+            apertures: [2.8, 4.0, 5.6, 8.0],
+            shutterSpeeds: [1.0/1000, 1.0/500, 1.0/250, 1.0/125, 1.0/60, 1.0/30],
+            filmISO: 100
+        )
+
+        // Baseline
+        profile.exposureCompensation = 0.0
+        meter.updateRecommendation(for: profile, force: true)
+        let baseShutter = meter.recommendedShutterSpeed
+
+        // +1 comp in aperture priority → shutter should get slower
+        profile.exposureCompensation = 1.0
+        meter.updateRecommendation(for: profile, force: true)
+        let overShutter = meter.recommendedShutterSpeed
+
+        #expect(overShutter >= baseShutter)
+    }
 }
 
 // MARK: - Standard Values Tests
@@ -821,11 +884,36 @@ struct StandardValuesTests {
         }
     }
 
+    @Test func standardAperturesIncludeExoticValues() {
+        let apertures = ExposureCalculator.standardApertures
+        #expect(apertures.contains(0.7))
+        #expect(apertures.contains(0.8))
+        #expect(apertures.contains(0.95))
+        #expect(apertures.contains(1.2))
+        #expect(apertures.contains(1.5))
+        #expect(apertures.contains(1.7))
+        #expect(apertures.contains(1.8))
+        #expect(apertures.contains(32.0))
+        #expect(apertures.contains(45.0))
+        #expect(apertures.contains(64.0))
+    }
+
     @Test func standardShutterSpeedsAreSorted() {
         let speeds = ExposureCalculator.standardShutterSpeeds
         for i in 0..<(speeds.count - 1) {
             #expect(speeds[i] < speeds[i + 1])
         }
+    }
+
+    @Test func standardShutterSpeedsIncludeFastSpeeds() {
+        let speeds = ExposureCalculator.standardShutterSpeeds
+        // Should include 1/12000, 1/8000, 1/6000
+        #expect(speeds.contains(where: { abs($0 - 1.0/12000) < 0.000001 }))
+        #expect(speeds.contains(where: { abs($0 - 1.0/8000) < 0.000001 }))
+        #expect(speeds.contains(where: { abs($0 - 1.0/6000) < 0.000001 }))
+        // Should include long exposures 16s and 30s
+        #expect(speeds.contains(16.0))
+        #expect(speeds.contains(30.0))
     }
 
     @Test func standardISOsAreSorted() {
@@ -841,5 +929,173 @@ struct StandardValuesTests {
         for i in 1..<isos.count {
             #expect(isos[i] == isos[i - 1] * 2)
         }
+    }
+}
+
+// MARK: - Extended Formatting Tests
+
+struct ExtendedFormattingTests {
+
+    @Test func formatApertureSubOne() {
+        #expect(ExposureCalculator.formatAperture(0.7) == "f/0.7")
+        #expect(ExposureCalculator.formatAperture(0.8) == "f/0.8")
+        #expect(ExposureCalculator.formatAperture(0.95) == "f/0.95")
+    }
+
+    @Test func formatApertureThirdStops() {
+        #expect(ExposureCalculator.formatAperture(1.2) == "f/1.2")
+        #expect(ExposureCalculator.formatAperture(1.5) == "f/1.5")
+        #expect(ExposureCalculator.formatAperture(6.3) == "f/6.3")
+        #expect(ExposureCalculator.formatAperture(7.1) == "f/7.1")
+    }
+
+    @Test func formatApertureLargeWhole() {
+        #expect(ExposureCalculator.formatAperture(32.0) == "f/32")
+        #expect(ExposureCalculator.formatAperture(45.0) == "f/45")
+        #expect(ExposureCalculator.formatAperture(64.0) == "f/64")
+    }
+
+    @Test func formatShutterSpeedVeryFast() {
+        #expect(ExposureCalculator.formatShutterSpeed(1.0/12000) == "1/12000")
+        #expect(ExposureCalculator.formatShutterSpeed(1.0/8000) == "1/8000")
+        #expect(ExposureCalculator.formatShutterSpeed(1.0/6000) == "1/6000")
+    }
+
+    @Test func formatShutterSpeedLongExposures() {
+        #expect(ExposureCalculator.formatShutterSpeed(16.0) == "16\u{2033}")
+        #expect(ExposureCalculator.formatShutterSpeed(30.0) == "30\u{2033}")
+    }
+}
+
+// MARK: - Lens Model Tests
+
+struct LensModelTests {
+
+    @Test func lensDefaults() {
+        let lens = Lens()
+        #expect(lens.name == "Standard Lens")
+        #expect(lens.focalLength == 50)
+        #expect(lens.isSelected == false)
+        #expect(!lens.apertures.isEmpty)
+    }
+
+    @Test func lensCustomValues() {
+        let lens = Lens(
+            name: "Summicron 50mm",
+            focalLength: 50,
+            apertures: [2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0],
+            isSelected: true
+        )
+        #expect(lens.name == "Summicron 50mm")
+        #expect(lens.focalLength == 50)
+        #expect(lens.isSelected == true)
+        #expect(lens.apertures.count == 7)
+    }
+
+    @Test func lensSortedApertures() {
+        let lens = Lens(
+            name: "Test",
+            focalLength: 35,
+            apertures: [8.0, 2.0, 16.0, 1.4, 5.6]
+        )
+        let sorted = lens.sortedApertures
+        #expect(sorted == [1.4, 2.0, 5.6, 8.0, 16.0])
+    }
+}
+
+// MARK: - CameraProfile Active Apertures Tests
+
+struct CameraProfileActiveAperturesTests {
+
+    @Test func activeAperturesFallsBackToProfileApertures() {
+        let profile = CameraProfile(
+            name: "Test",
+            apertures: [2.8, 4.0, 5.6, 8.0]
+        )
+        // No lenses attached — should use profile apertures
+        let active = profile.activeApertures
+        #expect(active == [2.8, 4.0, 5.6, 8.0])
+    }
+
+    @Test func activeAperturesUsesSortedProfileApertures() {
+        let profile = CameraProfile(
+            name: "Test",
+            apertures: [8.0, 2.8, 16.0, 5.6]
+        )
+        let active = profile.activeApertures
+        #expect(active == [2.8, 5.6, 8.0, 16.0])
+    }
+}
+
+// MARK: - AppearanceMode Tests
+
+struct AppearanceModeTests {
+
+    @Test func appearanceModeRawValues() {
+        #expect(AppearanceMode.system.rawValue == "system")
+        #expect(AppearanceMode.light.rawValue == "light")
+        #expect(AppearanceMode.dark.rawValue == "dark")
+    }
+
+    @Test func appearanceModeEncodeDecode() throws {
+        for mode in AppearanceMode.allCases {
+            let data = try JSONEncoder().encode(mode)
+            let decoded = try JSONDecoder().decode(AppearanceMode.self, from: data)
+            #expect(decoded == mode)
+        }
+    }
+
+    @Test func appearanceModeAllCases() {
+        #expect(AppearanceMode.allCases.count == 3)
+    }
+
+    @Test func appearanceModeDisplayName() {
+        #expect(AppearanceMode.system.displayName == "System")
+        #expect(AppearanceMode.light.displayName == "Light")
+        #expect(AppearanceMode.dark.displayName == "Dark")
+    }
+}
+
+// MARK: - Focal Length Camera Selection Tests
+
+struct FocalLengthSelectionTests {
+
+    @Test func selectClosestCameraMatchesExact() {
+        let meter = LightMeterService()
+        meter.availableCameras = [
+            CameraLens(id: "ultra", deviceType: .builtInUltraWideCamera, focalLength: 13, label: "13mm"),
+            CameraLens(id: "wide", deviceType: .builtInWideAngleCamera, focalLength: 26, label: "26mm"),
+            CameraLens(id: "tele", deviceType: .builtInTelephotoCamera, focalLength: 77, label: "77mm"),
+        ]
+        meter.activeCameraID = "wide"
+
+        // Selecting 77mm focal length should pick the tele camera
+        // Note: switchCamera won't work without a capture session, but we can
+        // verify the method doesn't crash and the logic is sound
+        meter.selectClosestCamera(toFocalLength: 77)
+        // Can't fully test camera switch without AVCaptureSession,
+        // but verify it doesn't crash
+    }
+
+    @Test func selectClosestCameraNoopWhenAlreadySelected() {
+        let meter = LightMeterService()
+        meter.availableCameras = [
+            CameraLens(id: "wide", deviceType: .builtInWideAngleCamera, focalLength: 26, label: "26mm"),
+        ]
+        meter.activeCameraID = "wide"
+
+        // Should be a no-op — already on the closest camera
+        meter.selectClosestCamera(toFocalLength: 26)
+        #expect(meter.activeCameraID == "wide")
+    }
+
+    @Test func selectClosestCameraEmptyCameras() {
+        let meter = LightMeterService()
+        meter.availableCameras = []
+        meter.activeCameraID = ""
+
+        // Should be a no-op with empty cameras
+        meter.selectClosestCamera(toFocalLength: 50)
+        #expect(meter.activeCameraID == "")
     }
 }
