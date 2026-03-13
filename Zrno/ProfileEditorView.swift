@@ -226,7 +226,7 @@ struct ProfileEditorView: View {
             .navigationBarHidden(true)
             .safeAreaInset(edge: .top) {
                 ZStack {
-                    Text(isEditing ? "EDIT CAMERA" : "NEW CAMERA")
+                    Text("CAMERA")
                         .font(.system(size: 15, weight: .semibold, design: .monospaced))
                         .tracking(4)
                         .foregroundStyle(theme.primaryColor)

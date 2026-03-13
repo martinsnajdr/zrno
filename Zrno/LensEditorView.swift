@@ -61,7 +61,7 @@ struct LensEditorView: View {
             .navigationBarHidden(true)
             .safeAreaInset(edge: .top) {
                 ZStack {
-                    Text(isEditing ? "EDIT LENS" : "NEW LENS")
+                    Text("LENS")
                         .font(.system(size: 15, weight: .semibold, design: .monospaced))
                         .tracking(4)
                         .foregroundStyle(theme.primaryColor)
