@@ -19,45 +19,44 @@ struct LensEditorView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    TextField("e.g. Summicron 50mm f/2", text: $name)
-                        .font(.system(size: 15, weight: .regular, design: .monospaced))
-                        .foregroundStyle(theme.primaryColor)
-                        .listRowBackground(theme.primaryColor.opacity(0.06))
-                } header: {
-                    Text("Lens Name")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundStyle(theme.secondaryColor)
-                }
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Lens Name
+                    sheetSection("Lens Name") {
+                        sheetRow(isLast: true) {
+                            TextField("e.g. Summicron 50mm f/2", text: $name)
+                                .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                .foregroundStyle(theme.primaryColor)
+                        }
+                    }
 
-                Section {
-                    TextField("e.g. 50", text: $focalLength)
-                        .font(.system(size: 15, weight: .regular, design: .monospaced))
-                        .foregroundStyle(theme.primaryColor)
-                        .keyboardType(.numberPad)
-                        .listRowBackground(theme.primaryColor.opacity(0.06))
-                } header: {
-                    Text("Focal Length (mm)")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundStyle(theme.secondaryColor)
-                }
+                    // Focal Length
+                    sheetSection("Focal Length (mm)") {
+                        sheetRow(isLast: true) {
+                            TextField("e.g. 50", text: $focalLength)
+                                .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                .foregroundStyle(theme.primaryColor)
+                                .keyboardType(.numberPad)
+                        }
+                    }
 
-                Section {
-                    apertureGrid
-                        .listRowBackground(theme.primaryColor.opacity(0.06))
-                } header: {
-                    Text("Available Apertures")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundStyle(theme.secondaryColor)
-                } footer: {
+                    // Apertures
+                    sheetSection("Available Apertures") {
+                        sheetRow(isLast: true) {
+                            apertureGrid
+                        }
+                    }
+
                     Text("Tap to toggle. Select the f-stops this lens has.")
                         .font(.system(size: 12, weight: .regular, design: .monospaced))
                         .foregroundStyle(theme.secondaryColor)
+                        .padding(.leading, 4)
+                        .padding(.top, -18)
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
             }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
             .background(theme.backgroundColor)
             .navigationBarHidden(true)
             .safeAreaInset(edge: .top) {
@@ -144,6 +143,40 @@ struct LensEditorView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    // MARK: - Section/Row Helpers (identical to SettingsView)
+
+    private func sheetSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(theme.secondaryColor)
+                .padding(.leading, 4)
+
+            VStack(spacing: 0) {
+                content()
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(theme.primaryColor.opacity(theme.subtleOpacity))
+            )
+        }
+    }
+
+    private func sheetRow<Content: View>(isLast: Bool = false, @ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            content()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+            if !isLast {
+                Rectangle()
+                    .fill(theme.primaryColor.opacity(0.08))
+                    .frame(height: 0.5)
+                    .padding(.leading, 14)
+            }
+        }
     }
 
     // MARK: - Actions

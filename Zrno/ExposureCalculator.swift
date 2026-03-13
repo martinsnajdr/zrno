@@ -72,10 +72,14 @@ enum ExposureCalculator {
             }) {
                 let actualNearest = calibration?(nearest) ?? nearest
                 let error = abs(log2(actualNearest) - log2(idealShutter))
-                // Prefer aperture closest to f/8 when errors are within 0.5 stops
-                let newDist = abs(log2(aperture) - log2(8.0))
-                let oldDist = abs(log2(bestPair.0) - log2(8.0))
-                if error < bestError - 0.5 || (error < bestError + 0.5 && newDist < oldDist) {
+                // Prefer combos near f/8 + 1/60s when errors are within 1 stop
+                let newApertureDist = abs(log2(aperture) - log2(8.0))
+                let newShutterDist = abs(log2(nearest) - log2(1.0 / 60.0))
+                let oldApertureDist = abs(log2(bestPair.0) - log2(8.0))
+                let oldShutterDist = abs(log2(bestPair.1) - log2(1.0 / 60.0))
+                let newScore = newApertureDist + newShutterDist
+                let oldScore = oldApertureDist + oldShutterDist
+                if error < bestError - 1.0 || (error < bestError + 1.0 && newScore < oldScore) {
                     bestError = error
                     bestPair = (aperture, nearest)
                 }

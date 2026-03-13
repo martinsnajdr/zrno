@@ -26,123 +26,194 @@ struct ProfileEditorView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    TextField("e.g. Leica M6", text: $name)
-                        .font(.system(size: 15, weight: .regular, design: .monospaced))
-                        .foregroundStyle(theme.primaryColor)
-                        .listRowBackground(theme.primaryColor.opacity(0.06))
-                } header: {
-                    Text("Camera Name")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundStyle(theme.secondaryColor)
-                }
-
-                Section {
-                    Picker("ISO", selection: $filmISO) {
-                        ForEach(ExposureCalculator.standardISOs, id: \.self) { iso in
-                            Text("ISO \(iso)")
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Camera Name
+                    sheetSection("Camera Name") {
+                        sheetRow(isLast: true) {
+                            TextField("e.g. Leica M6", text: $name)
                                 .font(.system(size: 15, weight: .regular, design: .monospaced))
-                                .tag(iso)
-                        }
-                    }
-                    .font(.system(size: 15, weight: .regular, design: .monospaced))
-                    .foregroundStyle(theme.primaryColor)
-                    .pickerStyle(.menu)
-                    .listRowBackground(theme.primaryColor.opacity(0.06))
-                } header: {
-                    Text("Film ISO")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundStyle(theme.secondaryColor)
-                }
-
-                if isEditing {
-                    Section {
-                        ForEach(sortedLenses) { lens in
-                            Button {
-                                editingLens = lens
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(lens.name)
-                                            .font(.system(size: 15, weight: .medium, design: .monospaced))
-                                            .foregroundStyle(theme.primaryColor)
-                                        Text("\(lens.focalLength)mm · \(lens.apertures.count) apertures")
-                                            .font(.system(size: 13, weight: .regular, design: .monospaced))
-                                            .foregroundStyle(theme.secondaryColor)
-                                    }
-                                    Spacer()
-                                    if lens.isSelected {
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 14, weight: .semibold))
-                                            .foregroundStyle(theme.primaryColor)
-                                    }
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(theme.secondaryColor)
-                                }
-                            }
-                            .listRowBackground(theme.primaryColor.opacity(0.06))
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    if let profile {
-                                        profile.lenses.removeAll { $0.id == lens.id }
-                                        modelContext.delete(lens)
-                                    }
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                        }
-
-                        Button {
-                            showAddLens = true
-                        } label: {
-                            Label("Add Lens", systemImage: "plus")
-                                .font(.system(size: 15, weight: .medium, design: .monospaced))
                                 .foregroundStyle(theme.primaryColor)
                         }
-                        .listRowBackground(theme.primaryColor.opacity(0.06))
-                    } header: {
-                        Text("Lenses")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundStyle(theme.secondaryColor)
-                    } footer: {
-                        Text("Each lens defines its own set of apertures. Tap to edit, swipe to delete.")
+                    }
+
+                    // Film ISO
+                    sheetSection("Film ISO") {
+                        sheetRow(isLast: true) {
+                            HStack {
+                                Text("ISO")
+                                    .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                    .foregroundStyle(theme.primaryColor)
+                                Spacer()
+                                Picker("", selection: $filmISO) {
+                                    ForEach(ExposureCalculator.standardISOs, id: \.self) { iso in
+                                        Text("\(iso)")
+                                            .tag(iso)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .tint(theme.primaryColor)
+                            }
+                        }
+                    }
+
+                    // Lenses (only when editing)
+                    if isEditing {
+                        sheetSection("Lenses") {
+                            let lenses = sortedLenses
+                            ForEach(Array(lenses.enumerated()), id: \.element.id) { index, lens in
+                                sheetRow(isLast: index == lenses.count - 1 && true) {
+                                    HStack {
+                                        Button {
+                                            editingLens = lens
+                                        } label: {
+                                            HStack {
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(lens.name)
+                                                        .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                                        .foregroundStyle(theme.primaryColor)
+                                                    Text("\(lens.focalLength)mm · \(lens.apertures.count) apertures")
+                                                        .font(.system(size: 11, weight: .regular, design: .monospaced))
+                                                        .foregroundStyle(theme.secondaryColor)
+                                                }
+
+                                                Spacer()
+
+                                                if lens.isSelected {
+                                                    Image(systemName: "checkmark")
+                                                        .font(.system(size: 13, weight: .semibold))
+                                                        .foregroundStyle(theme.primaryColor)
+                                                }
+                                            }
+                                            .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+
+                                        Button {
+                                            if let profile {
+                                                profile.lenses.removeAll { $0.id == lens.id }
+                                                modelContext.delete(lens)
+                                            }
+                                        } label: {
+                                            Image(systemName: "trash")
+                                                .font(.system(size: 14, weight: .medium))
+                                                .foregroundStyle(theme.secondaryColor)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+
+                            // Add Lens button as last row if lenses exist, or only row
+                            if !lenses.isEmpty {
+                                // Separator before add button
+                                VStack(spacing: 0) {
+                                    Rectangle()
+                                        .fill(theme.primaryColor.opacity(0.08))
+                                        .frame(height: 0.5)
+                                        .padding(.leading, 14)
+                                    Button {
+                                        showAddLens = true
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "plus")
+                                                .font(.system(size: 14, weight: .medium))
+                                            Text("Add Lens")
+                                                .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                        }
+                                        .foregroundStyle(theme.primaryColor)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            } else {
+                                sheetRow(isLast: true) {
+                                    Button {
+                                        showAddLens = true
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "plus")
+                                                .font(.system(size: 14, weight: .medium))
+                                            Text("Add Lens")
+                                                .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                        }
+                                        .foregroundStyle(theme.primaryColor)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+
+                        Text("Each lens defines its own set of apertures. Tap to edit, trash to delete.")
                             .font(.system(size: 12, weight: .regular, design: .monospaced))
                             .foregroundStyle(theme.secondaryColor)
+                            .padding(.leading, 4)
+                            .padding(.top, -18)
                     }
-                }
 
-                Section {
-                    shutterSpeedGrid
-                        .listRowBackground(theme.primaryColor.opacity(0.06))
-                } header: {
-                    Text("Available Shutter Speeds")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundStyle(theme.secondaryColor)
-                } footer: {
+                    // Shutter Speeds
+                    sheetSection("Available Shutter Speeds") {
+                        sheetRow(isLast: true) {
+                            shutterSpeedGrid
+                        }
+                    }
+
                     Text("Select the shutter speeds your camera supports.")
                         .font(.system(size: 12, weight: .regular, design: .monospaced))
                         .foregroundStyle(theme.secondaryColor)
-                }
+                        .padding(.leading, 4)
+                        .padding(.top, -18)
 
-                if !selectedShutterSpeeds.isEmpty {
-                    Section {
-                        calibrationList
-                    } header: {
-                        Text("Speed Calibration")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundStyle(theme.secondaryColor)
-                    } footer: {
+                    // Calibration
+                    if !selectedShutterSpeeds.isEmpty {
+                        sheetSection("Speed Calibration") {
+                            let speeds = Array(selectedShutterSpeeds).sorted()
+                            ForEach(Array(speeds.enumerated()), id: \.element) { index, speed in
+                                sheetRow(isLast: index == speeds.count - 1) {
+                                    HStack {
+                                        Text(ExposureCalculator.formatShutterSpeed(speed))
+                                            .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                            .foregroundStyle(theme.primaryColor)
+                                            .frame(width: 70, alignment: .leading)
+
+                                        Image(systemName: "arrow.right")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(theme.secondaryColor)
+
+                                        HStack(spacing: 2) {
+                                            Text("1/")
+                                                .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                                .foregroundStyle(theme.secondaryColor)
+                                            TextField(
+                                                reciprocalPlaceholder(for: speed),
+                                                text: calibrationBinding(for: speed)
+                                            )
+                                            .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                            .foregroundStyle(theme.primaryColor)
+                                            .keyboardType(.numberPad)
+                                            .frame(width: 60)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         Text("If a shutter speed differs from its marking, enter the actual measured value. E.g. if 1/125 actually exposes at 1/105, type 105.")
                             .font(.system(size: 12, weight: .regular, design: .monospaced))
                             .foregroundStyle(theme.secondaryColor)
+                            .padding(.leading, 4)
+                            .padding(.top, -18)
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
             }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
             .background(theme.backgroundColor)
             .navigationBarHidden(true)
             .safeAreaInset(edge: .top) {
@@ -241,37 +312,7 @@ struct ProfileEditorView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - Calibration List
-
-    private var calibrationList: some View {
-        ForEach(Array(selectedShutterSpeeds).sorted(), id: \.self) { speed in
-            HStack {
-                Text(ExposureCalculator.formatShutterSpeed(speed))
-                    .font(.system(size: 15, weight: .medium, design: .monospaced))
-                    .foregroundStyle(theme.primaryColor)
-                    .frame(width: 70, alignment: .leading)
-
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme.secondaryColor)
-
-                HStack(spacing: 2) {
-                    Text("1/")
-                        .font(.system(size: 15, weight: .regular, design: .monospaced))
-                        .foregroundStyle(theme.secondaryColor)
-                    TextField(
-                        reciprocalPlaceholder(for: speed),
-                        text: calibrationBinding(for: speed)
-                    )
-                    .font(.system(size: 15, weight: .regular, design: .monospaced))
-                    .foregroundStyle(theme.primaryColor)
-                    .keyboardType(.numberPad)
-                    .frame(width: 60)
-                }
-            }
-            .listRowBackground(theme.primaryColor.opacity(0.06))
-        }
-    }
+    // MARK: - Helpers
 
     private func reciprocalPlaceholder(for speed: Double) -> String {
         if speed >= 1.0 {
@@ -285,6 +326,40 @@ struct ProfileEditorView: View {
             get: { calibrationEntries[speed] ?? "" },
             set: { calibrationEntries[speed] = $0 }
         )
+    }
+
+    // MARK: - Section/Row Helpers (identical to SettingsView)
+
+    private func sheetSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(theme.secondaryColor)
+                .padding(.leading, 4)
+
+            VStack(spacing: 0) {
+                content()
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(theme.primaryColor.opacity(theme.subtleOpacity))
+            )
+        }
+    }
+
+    private func sheetRow<Content: View>(isLast: Bool = false, @ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            content()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+            if !isLast {
+                Rectangle()
+                    .fill(theme.primaryColor.opacity(0.08))
+                    .frame(height: 0.5)
+                    .padding(.leading, 14)
+            }
+        }
     }
 
     // MARK: - Actions

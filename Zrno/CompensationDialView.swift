@@ -23,6 +23,7 @@ struct CompensationDialView: View {
     @State private var baseOffset: CGFloat = 0
     @State private var dragDelta: CGFloat = 0
     @State private var isDragging = false
+    @State private var lastHapticTick: Int = 0 // tick index that last triggered haptic
 
     /// Current scroll offset combining base + drag
     private var currentOffset: CGFloat {
@@ -107,8 +108,10 @@ struct CompensationDialView: View {
                             let raw = baseOffset + gesture.translation.width
                             dragDelta = clampedOffset(raw) - baseOffset
                             let newValue = value(for: clampedOffset(raw))
-                            if abs(newValue - compensation) > 0.01 {
+                            let tick = Int((newValue * 3).rounded())
+                            if tick != lastHapticTick {
                                 feedbackGenerator.impactOccurred()
+                                lastHapticTick = tick
                                 compensation = newValue
                             }
                         }
@@ -133,6 +136,7 @@ struct CompensationDialView: View {
         .accessibilityIdentifier("compensationDial")
         .onAppear {
             baseOffset = offset(for: compensation)
+            lastHapticTick = Int((compensation * 3).rounded())
         }
         .onChange(of: compensation) { _, newValue in
             if !isDragging {
