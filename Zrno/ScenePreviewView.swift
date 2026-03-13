@@ -42,23 +42,22 @@ struct ScenePreviewView: View {
     @ViewBuilder
     private var cameraContent: some View {
         if let image {
-            // Monochrome preview: white highlights stay white, shadows take scheme color.
-            // The source image is grayscale from CIPhotoEffectNoir.
-            // Using .screen blend: white pixels stay white, black pixels show the background.
+            // Monochrome preview using .screen blend:
+            // Black source pixels → show shadow color, white → stay white/bright
             let tint = theme.scheme.previewTint
-            let shadowColor = Color(red: tint.r * 0.3, green: tint.g * 0.3, blue: tint.b * 0.3)
+            let shadowColor = Color(red: tint.r * 0.35, green: tint.g * 0.35, blue: tint.b * 0.35)
             Image(decorative: image, scale: 1.0)
                 .interpolation(.none)
                 .resizable()
                 .aspectRatio(4.0 / 3.0, contentMode: .fit)
                 .blendMode(.screen)
                 .background(shadowColor)
-                .clipShape(RoundedRectangle(cornerRadius: 2))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
         } else {
             Rectangle()
                 .fill(theme.primaryColor.opacity(0.03))
                 .aspectRatio(4.0 / 3.0, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 2))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay {
                     Image(systemName: "camera")
                         .font(.system(size: 16))

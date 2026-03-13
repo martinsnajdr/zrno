@@ -19,15 +19,21 @@ struct ContentView: View {
 
     private var activeProfile: CameraProfile? { selectedProfiles.first }
 
-    private var focalLengthText: String {
-        if let lens = activeProfile?.selectedLens {
-            return "\(lens.focalLength)mm"
+    private var focusDistanceText: String {
+        let pos = lightMeter.focusPosition
+        // lensPosition: 0 = near limit, 1 = far/infinity
+        if pos > 0.95 { return "\u{221E}" }
+        // Approximate real-world distance using a power curve
+        // Typical iPhone wide lens: ~8cm min focus, ~∞ max
+        let minDist: Float = 0.08
+        let distance = minDist * pow(10.0, pos * 2.5)
+        if distance < 1.0 {
+            return String(format: "%.1fm", distance)
+        } else if distance < 10.0 {
+            return String(format: "%.1fm", distance)
+        } else {
+            return String(format: "%.0fm", distance)
         }
-        return ""
-    }
-
-    private var activeCameraLabel: String {
-        lightMeter.availableCameras.first(where: { $0.id == lightMeter.activeCameraID })?.label ?? ""
     }
 
     var body: some View {
@@ -182,7 +188,8 @@ struct ContentView: View {
                     shutterSpeed: lightMeter.recommendedShutterSpeed,
                     iso: activeProfile?.filmISO ?? 400,
                     measuredEV: lightMeter.measuredEV,
-                    focalLength: focalLengthText,
+                    focusDistance: focusDistanceText,
+                    profileName: activeProfile?.name ?? "",
                     compensation: Binding(
                         get: { activeProfile?.exposureCompensation ?? 0 },
                         set: { activeProfile?.exposureCompensation = $0 }
@@ -191,10 +198,11 @@ struct ContentView: View {
                     availableApertures: activeProfile?.activeApertures ?? [],
                     availableShutterSpeeds: activeProfile?.sortedShutterSpeeds ?? [],
                     lenses: activeProfile?.lenses ?? [],
+                    cameras: lightMeter.availableCameras,
+                    activeCameraID: lightMeter.activeCameraID,
                     previewImage: lightMeter.previewImage,
                     histogramBins: lightMeter.histogramBins,
                     previewMode: $previewMode,
-                    activeCameraLabel: activeCameraLabel,
                     onISOTap: { showISOPicker = true },
                     onApertureLock: {
                         lightMeter.toggleAperturePriority(currentAperture: lightMeter.recommendedAperture)
@@ -226,6 +234,9 @@ struct ContentView: View {
                         lens.isSelected = true
                         lightMeter.selectClosestCamera(toFocalLength: lens.focalLength)
                         lightMeter.updateRecommendation(for: profile, force: true)
+                    },
+                    onCameraSelect: { camera in
+                        lightMeter.switchCamera(to: camera)
                     }
                 )
             }

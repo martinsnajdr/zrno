@@ -8,42 +8,48 @@ struct HistogramView: View {
     var body: some View {
         Canvas { context, size in
             let barWidth = size.width / CGFloat(bins.count)
-            let maxHeight = size.height
+            let graphHeight = size.height - 1 // Leave 1pt for baseline
 
             // Fill under the curve
             var path = Path()
-            path.move(to: CGPoint(x: 0, y: size.height))
+            path.move(to: CGPoint(x: 0, y: graphHeight))
 
             for (i, value) in bins.enumerated() {
                 let x = CGFloat(i) * barWidth
-                let h = CGFloat(value) * maxHeight
-                path.addLine(to: CGPoint(x: x, y: size.height - h))
+                let h = CGFloat(value) * graphHeight
+                path.addLine(to: CGPoint(x: x, y: graphHeight - h))
             }
-            path.addLine(to: CGPoint(x: size.width, y: size.height))
+            path.addLine(to: CGPoint(x: size.width, y: graphHeight))
             path.closeSubpath()
 
             context.fill(path, with: .linearGradient(
                 Gradient(colors: [
-                    theme.primaryColor.opacity(0.5),
-                    theme.primaryColor.opacity(0.08)
+                    theme.primaryColor.opacity(0.35),
+                    theme.primaryColor.opacity(0.05)
                 ]),
                 startPoint: CGPoint(x: 0, y: 0),
-                endPoint: CGPoint(x: 0, y: size.height)
+                endPoint: CGPoint(x: 0, y: graphHeight)
             ))
 
             // Stroke the top edge
             var strokePath = Path()
             for (i, value) in bins.enumerated() {
                 let x = CGFloat(i) * barWidth
-                let h = CGFloat(value) * maxHeight
-                let point = CGPoint(x: x, y: size.height - h)
+                let h = CGFloat(value) * graphHeight
+                let point = CGPoint(x: x, y: graphHeight - h)
                 if i == 0 {
                     strokePath.move(to: point)
                 } else {
                     strokePath.addLine(to: point)
                 }
             }
-            context.stroke(strokePath, with: .color(theme.primaryColor.opacity(0.8)), lineWidth: 1)
+            context.stroke(strokePath, with: .color(theme.primaryColor.opacity(0.6)), lineWidth: 1)
+
+            // Bottom baseline
+            var baseline = Path()
+            baseline.move(to: CGPoint(x: 0, y: graphHeight + 0.5))
+            baseline.addLine(to: CGPoint(x: size.width, y: graphHeight + 0.5))
+            context.stroke(baseline, with: .color(theme.primaryColor.opacity(0.2)), lineWidth: 0.5)
         }
     }
 }

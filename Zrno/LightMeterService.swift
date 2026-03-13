@@ -65,7 +65,9 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
 
     // Debounce: only update displayed values when EV changes meaningfully
     private var lastRecommendationEV: Double = -.infinity
-    private let recommendationThreshold: Double = 0.15 // ~1/6 stop
+    private let recommendationThreshold: Double = 0.3 // ~1/3 stop
+    private var lastRecommendationTime: Date = .distantPast
+    private let recommendationInterval: TimeInterval = 0.5 // max 2x/sec
 
     // MARK: - Private
 
@@ -145,11 +147,17 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
     func updateRecommendation(for profile: CameraProfile, force: Bool = false) {
         let adjustedEV = measuredEV - profile.exposureCompensation
 
-        // Debounce: skip if EV hasn't changed enough (unless forced by user action)
-        if !force && abs(adjustedEV - lastRecommendationEV) < recommendationThreshold {
-            return
+        // Debounce: skip if EV hasn't changed enough or too soon (unless forced by user action)
+        let now = Date()
+        if !force {
+            let evDelta = abs(adjustedEV - lastRecommendationEV)
+            let timeDelta = now.timeIntervalSince(lastRecommendationTime)
+            if evDelta < recommendationThreshold && timeDelta < recommendationInterval {
+                return
+            }
         }
         lastRecommendationEV = adjustedEV
+        lastRecommendationTime = now
 
         let calibrate: (Double) -> Double = { profile.calibratedSpeed(for: $0) }
 
@@ -307,6 +315,9 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
                 if newDevice.isExposureModeSupported(.continuousAutoExposure) {
                     newDevice.exposureMode = .continuousAutoExposure
                 }
+                if newDevice.isFocusModeSupported(.continuousAutoFocus) {
+                    newDevice.focusMode = .continuousAutoFocus
+                }
                 newDevice.unlockForConfiguration()
             } catch {
                 // Switch failed
@@ -369,6 +380,9 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
             if device.isExposureModeSupported(.continuousAutoExposure) {
                 device.exposureMode = .continuousAutoExposure
             }
+            if device.isFocusModeSupported(.continuousAutoFocus) {
+                device.focusMode = .continuousAutoFocus
+            }
             device.unlockForConfiguration()
 
             self.captureDevice = device
@@ -395,13 +409,12 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
             .oriented(.right)
 
-        // Center-crop to 4:3, downscale to 48x36 for a pixelated preview
+        // Crop to 4:3 landscape, downscale to 64x48 for a pixelated preview
         let extent = ciImage.extent
         let targetAspect: CGFloat = 4.0 / 3.0
-        let sourceAspect = extent.width / extent.height
         let cropW: CGFloat
         let cropH: CGFloat
-        if sourceAspect > targetAspect {
+        if extent.width / extent.height > targetAspect {
             cropH = extent.height
             cropW = cropH * targetAspect
         } else {
@@ -420,9 +433,10 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
                 y: -cropRect.origin.y
             ))
 
-        let targetW: CGFloat = 48
+        let targetW: CGFloat = 64
+        let targetH: CGFloat = 48
         let scaleX = targetW / cropW
-        let scaleY = (targetW / targetAspect) / cropH
+        let scaleY = targetH / cropH
         let scaled = cropped
             .transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
 
@@ -430,8 +444,8 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         let mono = scaled
             .applyingFilter("CIPhotoEffectNoir")
             .applyingFilter("CIColorControls", parameters: [
-                "inputContrast": 1.6,
-                "inputBrightness": 0.0,
+                "inputContrast": 1.8,
+                "inputBrightness": 0.1,
                 "inputSaturation": 0.0
             ])
 
@@ -576,7 +590,7 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
     }
 
     private func generateSimulatorPreview() {
-        let size = CGSize(width: 48, height: 36)
+        let size = CGSize(width: 64, height: 48)
         let renderer = UIGraphicsImageRenderer(size: size)
         let uiImage = renderer.image { ctx in
             let colors = [

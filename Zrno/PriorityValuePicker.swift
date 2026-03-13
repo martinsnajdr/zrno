@@ -1,7 +1,14 @@
 import SwiftUI
 
-/// Horizontal scrollable picker for selecting a locked value in priority mode.
-/// Shows available apertures or shutter speeds as tappable chips.
+/// A wrapper to make Double values Identifiable for scroll position tracking.
+private struct PickerItem: Identifiable, Hashable {
+    let value: Double
+    var id: Double { value }
+}
+
+/// Horizontal scroll-to-select picker for locked values in priority mode.
+/// All values display at the same font size. Scrolling snaps to each value
+/// and selects it. Tap on selected value to unlock.
 struct PriorityValuePicker: View {
     @Environment(\.appTheme) private var theme
 
@@ -9,48 +16,68 @@ struct PriorityValuePicker: View {
     let selectedValue: Double
     let formatter: (Double) -> String
     let onSelect: (Double) -> Void
+    var font: Font = .system(size: 15, weight: .bold, design: .monospaced)
+    var onTapSelected: (() -> Void)? = nil
+    var cellWidth: CGFloat = 80
+
+    @State private var scrolledID: Double?
+    @State private var isInitialized = false
+
+    private var items: [PickerItem] {
+        values.map { PickerItem(value: $0) }
+    }
 
     var body: some View {
-        ScrollViewReader { proxy in
+        GeometryReader { geo in
+            let sideInset = (geo.size.width - cellWidth) / 2
+
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(values, id: \.self) { value in
-                        let isSelected = abs(value - selectedValue) < 0.001
-                        Button {
-                            onSelect(value)
-                        } label: {
-                            Text(formatter(value))
-                                .font(.system(size: 15, weight: isSelected ? .bold : .medium, design: .monospaced))
-                                .foregroundStyle(isSelected ? theme.primaryColor : theme.secondaryColor)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(
-                                    isSelected
-                                        ? theme.accentColor.opacity(0.2)
-                                        : theme.primaryColor.opacity(0.05),
-                                    in: RoundedRectangle(cornerRadius: 4)
-                                )
-                                .overlay(
-                                    isSelected
-                                        ? RoundedRectangle(cornerRadius: 4).stroke(theme.accentColor.opacity(0.4), lineWidth: 1)
-                                        : nil
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .id(value)
+                HStack(spacing: 12) {
+                    ForEach(items) { item in
+                        let isSelected = abs(item.value - selectedValue) < 0.001
+                        Text(formatter(item.value))
+                            .font(font)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .foregroundStyle(theme.primaryColor.opacity(isSelected ? 1.0 : 0.15))
+                            .frame(minWidth: cellWidth)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if isSelected, let onTapSelected {
+                                    onTapSelected()
+                                } else {
+                                    withAnimation(.easeOut(duration: 0.2)) {
+                                        scrolledID = item.value
+                                    }
+                                }
+                            }
                     }
                 }
-                .padding(.horizontal, 20)
+                .scrollTargetLayout()
             }
-            .onAppear {
-                proxy.scrollTo(selectedValue, anchor: .center)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $scrolledID, anchor: .center)
+            .safeAreaPadding(.horizontal, sideInset)
+            .scrollClipDisabled(false)
+            .onChange(of: scrolledID) { _, newID in
+                guard let newID, isInitialized else { return }
+                if abs(newID - selectedValue) > 0.001 {
+                    onSelect(newID)
+                }
             }
             .onChange(of: selectedValue) { _, newValue in
-                withAnimation(.easeOut(duration: 0.2)) {
-                    proxy.scrollTo(newValue, anchor: .center)
+                if scrolledID != newValue {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        scrolledID = newValue
+                    }
+                }
+            }
+            .onAppear {
+                scrolledID = selectedValue
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isInitialized = true
                 }
             }
         }
-        .frame(height: 36)
+        .clipped()
     }
 }
