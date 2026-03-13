@@ -1,13 +1,13 @@
 //
-//  fotoneUITestsLaunchTests.swift
-//  fotoneUITests
+//  ZrnoUITestsLaunchTests.swift
+//  ZrnoUITests
 //
 //  Created by Martin Šnajdr on 13.03.2026.
 //
 
 import XCTest
 
-final class fotoneUITestsLaunchTests: XCTestCase {
+final class zrnoUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

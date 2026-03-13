@@ -84,19 +84,10 @@ struct ContentView: View {
                 .padding(.top, 60)
                 .padding(.horizontal, 20)
 
-                // Scene preview window (small, swipeable)
-                ScenePreviewView(
-                    image: lightMeter.previewImage,
-                    histogramBins: lightMeter.histogramBins,
-                    previewMode: $previewMode
-                )
-                .padding(.top, 8)
-
                 Spacer()
             }
         }
         .environment(\.appTheme, theme)
-        .preferredColorScheme(.dark)
         .persistentSystemOverlays(.hidden)
         .onAppear {
             ensureDefaultProfile()
@@ -112,12 +103,17 @@ struct ContentView: View {
         }
         .onChange(of: allProfiles.count) {
             if let profile = activeProfile {
-                lightMeter.updateRecommendation(for: profile)
+                lightMeter.updateRecommendation(for: profile, force: true)
             }
         }
-        .onChange(of: activeProfile?.exposureCompensation) {
+        .onChange(of: activeProfile?.exposureCompensation) { _, _ in
             if let profile = activeProfile {
-                lightMeter.updateRecommendation(for: profile)
+                lightMeter.updateRecommendation(for: profile, force: true)
+            }
+        }
+        .onChange(of: activeProfile?.filmISO) { _, _ in
+            if let profile = activeProfile {
+                lightMeter.updateRecommendation(for: profile, force: true)
             }
         }
         .sheet(isPresented: $showProfileList) {
@@ -150,7 +146,6 @@ struct ContentView: View {
                     shutterSpeed: lightMeter.recommendedShutterSpeed,
                     iso: activeProfile?.filmISO ?? 400,
                     profileName: activeProfile?.name ?? "No Camera",
-                    combinations: lightMeter.exposureCombinations,
                     compensation: Binding(
                         get: { activeProfile?.exposureCompensation ?? 0 },
                         set: { activeProfile?.exposureCompensation = $0 }
@@ -159,30 +154,33 @@ struct ContentView: View {
                     focusPosition: lightMeter.focusPosition,
                     availableApertures: activeProfile?.sortedApertures ?? [],
                     availableShutterSpeeds: activeProfile?.sortedShutterSpeeds ?? [],
+                    previewImage: lightMeter.previewImage,
+                    histogramBins: lightMeter.histogramBins,
+                    previewMode: $previewMode,
                     onISOTap: { showISOPicker = true },
                     onProfileTap: { showProfileList = true },
                     onApertureLock: {
                         lightMeter.toggleAperturePriority(currentAperture: lightMeter.recommendedAperture)
                         if let profile = activeProfile {
-                            lightMeter.updateRecommendation(for: profile)
+                            lightMeter.updateRecommendation(for: profile, force: true)
                         }
                     },
                     onShutterLock: {
                         lightMeter.toggleShutterPriority(currentShutter: lightMeter.recommendedShutterSpeed)
                         if let profile = activeProfile {
-                            lightMeter.updateRecommendation(for: profile)
+                            lightMeter.updateRecommendation(for: profile, force: true)
                         }
                     },
                     onApertureSelect: { value in
                         lightMeter.setLockedAperture(value)
                         if let profile = activeProfile {
-                            lightMeter.updateRecommendation(for: profile)
+                            lightMeter.updateRecommendation(for: profile, force: true)
                         }
                     },
                     onShutterSelect: { value in
                         lightMeter.setLockedShutterSpeed(value)
                         if let profile = activeProfile {
-                            lightMeter.updateRecommendation(for: profile)
+                            lightMeter.updateRecommendation(for: profile, force: true)
                         }
                     }
                 )

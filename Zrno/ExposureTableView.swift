@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ExposureTableView: View {
+    @Environment(\.appTheme) private var theme
+
     let combinations: [(aperture: Double, shutterSpeed: Double)]
     let recommended: (aperture: Double, shutterSpeed: Double)
 
@@ -17,14 +19,14 @@ struct ExposureTableView: View {
 
                     Image(systemName: "arrow.right")
                         .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.25))
+                        .foregroundStyle(theme.primaryColor.opacity(0.25))
                         .padding(.horizontal, 8)
 
                     Text(ExposureCalculator.formatShutterSpeed(combo.shutterSpeed))
                         .font(.system(size: 16, weight: isRecommended ? .semibold : .regular, design: .monospaced))
                         .frame(width: 80, alignment: .leading)
                 }
-                .foregroundStyle(isRecommended ? .white : .white.opacity(0.5))
+                .foregroundStyle(isRecommended ? theme.primaryColor : theme.secondaryColor)
                 .padding(.vertical, 6)
             }
         }

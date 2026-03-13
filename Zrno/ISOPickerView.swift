@@ -23,7 +23,7 @@ struct ISOPickerView: View {
                         if profile?.filmISO == iso {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(.primary)
                         }
                     }
                     .contentShape(Rectangle())
@@ -39,5 +39,6 @@ struct ISOPickerView: View {
                 }
             }
         }
+        .tint(.primary)
     }
 }

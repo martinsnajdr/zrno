@@ -12,6 +12,7 @@ struct ProfileEditorView: View {
     @State private var selectedApertures: Set<Double> = [2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0]
     @State private var selectedShutterSpeeds: Set<Double> = []
     @State private var compensation: Double = 0.0
+    @State private var calibrationEntries: [Double: String] = [:] // nominal speed → actual reciprocal text
 
     private let standardApertures: [Double] = ExposureCalculator.standardApertures
     private let standardShutterSpeeds: [Double] = ExposureCalculator.standardShutterSpeeds
@@ -51,19 +52,14 @@ struct ProfileEditorView: View {
                     Text("Select the shutter speeds your camera supports.")
                 }
 
-                Section("Exposure Compensation") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("EV \(compensation >= 0 ? "+" : "")\(compensation, specifier: "%.1f")")
-                            .font(.system(size: 20, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.primary)
-                        Slider(value: $compensation, in: -3...3, step: 0.3) {
-                            Text("Compensation")
-                        }
-                        Text("Adjust if your camera meters differently than expected.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                if !selectedShutterSpeeds.isEmpty {
+                    Section {
+                        calibrationList
+                    } header: {
+                        Text("Speed Calibration")
+                    } footer: {
+                        Text("If a shutter speed differs from its marking, enter the actual measured value. E.g. if 1/125 actually exposes at 1/105, type 105.")
                     }
-                    .padding(.vertical, 4)
                 }
             }
             .navigationTitle(isEditing ? "Edit Camera" : "New Camera")
@@ -80,6 +76,7 @@ struct ProfileEditorView: View {
             }
             .onAppear { loadProfile() }
         }
+        .tint(.primary)
     }
 
     // MARK: - Aperture Grid
@@ -96,11 +93,11 @@ struct ProfileEditorView: View {
                         .padding(.vertical, 10)
                         .background(
                             selectedApertures.contains(f)
-                                ? Color.blue.opacity(0.8)
+                                ? Color.primary.opacity(0.85)
                                 : Color(.systemGray5)
                         )
-                        .foregroundStyle(selectedApertures.contains(f) ? .white : .primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .foregroundStyle(selectedApertures.contains(f) ? Color(.systemBackground) : .primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
             }
@@ -122,16 +119,59 @@ struct ProfileEditorView: View {
                         .padding(.vertical, 10)
                         .background(
                             selectedShutterSpeeds.contains(speed)
-                                ? Color.blue.opacity(0.8)
+                                ? Color.primary.opacity(0.85)
                                 : Color(.systemGray5)
                         )
-                        .foregroundStyle(selectedShutterSpeeds.contains(speed) ? .white : .primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .foregroundStyle(selectedShutterSpeeds.contains(speed) ? Color(.systemBackground) : .primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(.vertical, 4)
+    }
+
+    // MARK: - Calibration List
+
+    private var calibrationList: some View {
+        ForEach(Array(selectedShutterSpeeds).sorted(), id: \.self) { speed in
+            HStack {
+                Text(ExposureCalculator.formatShutterSpeed(speed))
+                    .font(.system(size: 15, weight: .medium, design: .monospaced))
+                    .frame(width: 70, alignment: .leading)
+
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 2) {
+                    Text("1/")
+                        .font(.system(size: 15, weight: .regular, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    TextField(
+                        reciprocalPlaceholder(for: speed),
+                        text: calibrationBinding(for: speed)
+                    )
+                    .font(.system(size: 15, weight: .regular, design: .monospaced))
+                    .keyboardType(.numberPad)
+                    .frame(width: 60)
+                }
+            }
+        }
+    }
+
+    private func reciprocalPlaceholder(for speed: Double) -> String {
+        if speed >= 1.0 {
+            return speed == floor(speed) ? "\(Int(speed))\"" : String(format: "%.1f\"", speed)
+        }
+        return "\(Int(round(1.0 / speed)))"
+    }
+
+    private func calibrationBinding(for speed: Double) -> Binding<String> {
+        Binding(
+            get: { calibrationEntries[speed] ?? "" },
+            set: { calibrationEntries[speed] = $0 }
+        )
     }
 
     // MARK: - Actions
@@ -168,28 +208,54 @@ struct ProfileEditorView: View {
         selectedApertures = Set(profile.apertures)
         selectedShutterSpeeds = Set(profile.shutterSpeeds)
         compensation = profile.exposureCompensation
+        // Load calibration: convert actual speeds back to reciprocal text
+        for (nominal, actual) in profile.shutterCalibration {
+            if actual >= 1.0 {
+                calibrationEntries[nominal] = actual == floor(actual)
+                    ? "\(Int(actual))"
+                    : String(format: "%.1f", actual)
+            } else {
+                calibrationEntries[nominal] = "\(Int(round(1.0 / actual)))"
+            }
+        }
+    }
+
+    private func buildCalibration() -> [Double: Double] {
+        var result: [Double: Double] = [:]
+        for (nominal, text) in calibrationEntries {
+            let trimmed = text.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty, let reciprocal = Double(trimmed), reciprocal > 0 else { continue }
+            let actualSpeed = 1.0 / reciprocal
+            // Only store if meaningfully different from nominal
+            if abs(log2(actualSpeed) - log2(nominal)) > 0.01 {
+                result[nominal] = actualSpeed
+            }
+        }
+        return result
     }
 
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return }
 
+        let calibration = buildCalibration()
+
         if let profile {
-            // Update existing
             profile.name = trimmedName
             profile.filmISO = filmISO
             profile.apertures = Array(selectedApertures).sorted()
             profile.shutterSpeeds = Array(selectedShutterSpeeds).sorted()
             profile.exposureCompensation = compensation
+            profile.shutterCalibration = calibration
         } else {
-            // Create new
             let newProfile = CameraProfile(
                 name: trimmedName,
                 apertures: Array(selectedApertures).sorted(),
                 shutterSpeeds: Array(selectedShutterSpeeds).sorted(),
                 filmISO: filmISO,
                 exposureCompensation: compensation,
-                isSelected: false
+                isSelected: false,
+                shutterCalibration: calibration
             )
             modelContext.insert(newProfile)
         }

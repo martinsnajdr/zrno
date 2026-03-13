@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct HistogramView: View {
+    @Environment(\.appTheme) private var theme
+
     let bins: [Float]
 
     var body: some View {
@@ -22,8 +24,8 @@ struct HistogramView: View {
 
             context.fill(path, with: .linearGradient(
                 Gradient(colors: [
-                    .white.opacity(0.25),
-                    .white.opacity(0.08)
+                    theme.accentColor.opacity(0.35),
+                    theme.accentColor.opacity(0.1)
                 ]),
                 startPoint: CGPoint(x: 0, y: 0),
                 endPoint: CGPoint(x: 0, y: size.height)
@@ -41,7 +43,7 @@ struct HistogramView: View {
                     strokePath.addLine(to: point)
                 }
             }
-            context.stroke(strokePath, with: .color(.white.opacity(0.4)), lineWidth: 1)
+            context.stroke(strokePath, with: .color(theme.accentColor.opacity(0.6)), lineWidth: 1)
         }
     }
 }

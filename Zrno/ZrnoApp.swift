@@ -1,6 +1,6 @@
 //
-//  fotoneApp.swift
-//  fotone
+//  ZrnoApp.swift
+//  Zrno
 //
 //  Created by Martin Šnajdr on 13.03.2026.
 //
@@ -9,10 +9,10 @@ import SwiftUI
 import SwiftData
 
 @main
-struct fotoneApp: App {
+struct zrnoApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            CameraProfile.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

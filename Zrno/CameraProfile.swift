@@ -11,6 +11,12 @@ final class CameraProfile {
     var isSelected: Bool
     var createdAt: Date
 
+    /// Shutter speed calibration: maps nominal speeds (dial markings) to actual measured speeds.
+    /// Keys and values are shutter durations in seconds.
+    /// Example: if dial reads 1/125 but actual speed is 1/105, store [0.008: 0.00952].
+    /// Only speeds that differ from nominal need entries.
+    var shutterCalibration: [Double: Double]
+
     init(
         name: String,
         apertures: [Double] = [1.4, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0],
@@ -21,7 +27,8 @@ final class CameraProfile {
         ],
         filmISO: Int = 400,
         exposureCompensation: Double = 0.0,
-        isSelected: Bool = false
+        isSelected: Bool = false,
+        shutterCalibration: [Double: Double] = [:]
     ) {
         self.name = name
         self.apertures = apertures
@@ -30,6 +37,7 @@ final class CameraProfile {
         self.exposureCompensation = exposureCompensation
         self.isSelected = isSelected
         self.createdAt = Date()
+        self.shutterCalibration = shutterCalibration
     }
 
     /// Sorted apertures ascending (f/1.4 → f/16)
@@ -40,5 +48,17 @@ final class CameraProfile {
     /// Sorted shutter speeds descending (fastest → slowest: 1/1000 → 1″)
     var sortedShutterSpeeds: [Double] {
         shutterSpeeds.sorted()
+    }
+
+    /// Returns the actual (calibrated) speed for a nominal dial speed.
+    /// If no calibration entry exists, returns the nominal speed unchanged.
+    func calibratedSpeed(for nominal: Double) -> Double {
+        // Find matching key using small tolerance for floating point
+        for (key, value) in shutterCalibration {
+            if abs(log2(key) - log2(nominal)) < 0.01 {
+                return value
+            }
+        }
+        return nominal
     }
 }

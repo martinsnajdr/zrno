@@ -39,12 +39,15 @@ enum ExposureCalculator {
     }
 
     /// Find the best aperture/shutter combo from available options on the camera profile.
+    /// When `calibration` is provided, uses actual (measured) speeds for accuracy
+    /// while returning the nominal (dial) speed for display.
     static func bestExposure(
         ev100: Double,
         filmISO: Int,
         availableApertures: [Double],
         availableShutterSpeeds: [Double],
-        compensation: Double = 0.0
+        compensation: Double = 0.0,
+        calibration: ((Double) -> Double)? = nil
     ) -> (aperture: Double, shutterSpeed: Double) {
         let adjustedEV = ev100 + compensation
         var bestPair: (Double, Double) = (
@@ -57,9 +60,12 @@ enum ExposureCalculator {
             let idealShutter = self.shutterSpeed(forAperture: aperture, ev100: adjustedEV, filmISO: filmISO)
             guard idealShutter > 0 else { continue }
             if let nearest = availableShutterSpeeds.min(by: {
-                abs(log2($0) - log2(idealShutter)) < abs(log2($1) - log2(idealShutter))
+                let actual0 = calibration?($0) ?? $0
+                let actual1 = calibration?($1) ?? $1
+                return abs(log2(actual0) - log2(idealShutter)) < abs(log2(actual1) - log2(idealShutter))
             }) {
-                let error = abs(log2(nearest) - log2(idealShutter))
+                let actualNearest = calibration?(nearest) ?? nearest
+                let error = abs(log2(actualNearest) - log2(idealShutter))
                 if error < bestError {
                     bestError = error
                     bestPair = (aperture, nearest)
@@ -71,25 +77,40 @@ enum ExposureCalculator {
     }
 
     /// Generate all exposure combinations for the current light level.
+    /// When `calibration` is provided, uses actual (measured) speeds for accuracy
+    /// while returning the nominal (dial) speed for display.
     static func allCombinations(
         ev100: Double,
         filmISO: Int,
         availableApertures: [Double],
         availableShutterSpeeds: [Double],
-        compensation: Double = 0.0
+        compensation: Double = 0.0,
+        calibration: ((Double) -> Double)? = nil
     ) -> [(aperture: Double, shutterSpeed: Double)] {
         let adjustedEV = ev100 + compensation
         return availableApertures.compactMap { aperture in
             let idealShutter = self.shutterSpeed(forAperture: aperture, ev100: adjustedEV, filmISO: filmISO)
             guard idealShutter > 0 else { return nil }
             guard let nearest = availableShutterSpeeds.min(by: {
-                abs(log2($0) - log2(idealShutter)) < abs(log2($1) - log2(idealShutter))
+                let actual0 = calibration?($0) ?? $0
+                let actual1 = calibration?($1) ?? $1
+                return abs(log2(actual0) - log2(idealShutter)) < abs(log2(actual1) - log2(idealShutter))
             }) else { return nil }
-            // Only include if the error is within 2/3 stop
-            let error = abs(log2(nearest) - log2(idealShutter))
+            let actualNearest = calibration?(nearest) ?? nearest
+            let error = abs(log2(actualNearest) - log2(idealShutter))
             guard error < 0.67 else { return nil }
             return (aperture, nearest)
         }
+    }
+
+    // MARK: - Nearest Value Snap
+
+    /// Find the nearest value in an array (by log-distance for photographic stops).
+    static func nearestValue(to target: Double, in values: [Double]) -> Double? {
+        guard !values.isEmpty, target > 0 else { return values.first }
+        return values.min(by: {
+            abs(log2($0) - log2(target)) < abs(log2($1) - log2(target))
+        })
     }
 
     // MARK: - Formatting

@@ -3,6 +3,31 @@ import CoreImage
 import Observation
 import UIKit
 
+// MARK: - Camera Lens
+
+struct CameraLens: Identifiable, Hashable {
+    let id: String
+    let deviceType: AVCaptureDevice.DeviceType
+    let focalLength: Int // 35mm equivalent
+    let label: String
+
+    static func == (lhs: CameraLens, rhs: CameraLens) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
+// MARK: - Meter Mode
+
+enum MeterMode: String, Codable {
+    case auto
+    case aperturePriority
+    case shutterPriority
+}
+
 @Observable
 final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoDataOutputSampleBufferDelegate {
 
@@ -26,17 +51,34 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
     // Histogram data (256 bins for luminance)
     var histogramBins: [Float] = Array(repeating: 0, count: 256)
 
+    // Multi-camera
+    var availableCameras: [CameraLens] = []
+    var activeCameraID: String = ""
+
+    // Focus distance (0.0 = near, 1.0 = far)
+    var focusPosition: Float = 1.0
+
+    // Priority mode
+    var meterMode: MeterMode = .auto
+    var lockedAperture: Double?
+    var lockedShutterSpeed: Double?
+
+    // Debounce: only update displayed values when EV changes meaningfully
+    private var lastRecommendationEV: Double = -.infinity
+    private let recommendationThreshold: Double = 0.15 // ~1/6 stop
+
     // MARK: - Private
 
     private var captureSession: AVCaptureSession?
     private var captureDevice: AVCaptureDevice?
+    private var currentInput: AVCaptureDeviceInput?
     private var observations: [NSKeyValueObservation] = []
-    private let sessionQueue = DispatchQueue(label: "com.svit.session")
-    private let processingQueue = DispatchQueue(label: "com.svit.processing", qos: .userInitiated)
+    private let sessionQueue = DispatchQueue(label: "com.zrno.session")
+    private let processingQueue = DispatchQueue(label: "com.zrno.processing", qos: .userInitiated)
     private let smoothingFactor: Double = 0.15
     private var hasInitialReading = false
     private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
-    private var frameSkipCounter = 0
+    nonisolated(unsafe) private var frameSkipCounter = 0
 
     #if targetEnvironment(simulator)
     private var simulatorTimer: Timer?
@@ -70,8 +112,10 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         startSimulatorMetering()
         #else
         guard permissionGranted else { return }
+        discoverCameras()
         setupSession()
         observeExposure()
+        observeFocus()
         sessionQueue.async { [weak self] in
             self?.captureSession?.startRunning()
             DispatchQueue.main.async {
@@ -98,24 +142,177 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
 
     // MARK: - Recommendation
 
-    func updateRecommendation(for profile: CameraProfile) {
-        let result = ExposureCalculator.bestExposure(
-            ev100: measuredEV,
-            filmISO: profile.filmISO,
-            availableApertures: profile.sortedApertures,
-            availableShutterSpeeds: profile.sortedShutterSpeeds,
-            compensation: profile.exposureCompensation
-        )
-        recommendedAperture = result.aperture
-        recommendedShutterSpeed = result.shutterSpeed
+    func updateRecommendation(for profile: CameraProfile, force: Bool = false) {
+        let adjustedEV = measuredEV + profile.exposureCompensation
+
+        // Debounce: skip if EV hasn't changed enough (unless forced by user action)
+        if !force && abs(adjustedEV - lastRecommendationEV) < recommendationThreshold {
+            return
+        }
+        lastRecommendationEV = adjustedEV
+
+        let calibrate: (Double) -> Double = { profile.calibratedSpeed(for: $0) }
+
+        switch meterMode {
+        case .auto:
+            let result = ExposureCalculator.bestExposure(
+                ev100: measuredEV,
+                filmISO: profile.filmISO,
+                availableApertures: profile.sortedApertures,
+                availableShutterSpeeds: profile.sortedShutterSpeeds,
+                compensation: profile.exposureCompensation,
+                calibration: calibrate
+            )
+            recommendedAperture = result.aperture
+            recommendedShutterSpeed = result.shutterSpeed
+
+        case .aperturePriority:
+            let locked = lockedAperture ?? profile.sortedApertures.first ?? 5.6
+            lockedAperture = locked
+            recommendedAperture = locked
+            // Use calibrated speed for the calculation
+            let idealShutter = ExposureCalculator.shutterSpeed(
+                forAperture: locked, ev100: adjustedEV, filmISO: profile.filmISO
+            )
+            recommendedShutterSpeed = ExposureCalculator.nearestValue(
+                to: idealShutter, in: profile.sortedShutterSpeeds
+            ) ?? idealShutter
+
+        case .shutterPriority:
+            let locked = lockedShutterSpeed ?? profile.sortedShutterSpeeds.first ?? (1.0 / 125)
+            lockedShutterSpeed = locked
+            recommendedShutterSpeed = locked
+            // Use the calibrated actual speed for aperture calculation
+            let actualSpeed = calibrate(locked)
+            let idealAperture = ExposureCalculator.aperture(
+                forShutterSpeed: actualSpeed, ev100: adjustedEV, filmISO: profile.filmISO
+            )
+            recommendedAperture = ExposureCalculator.nearestValue(
+                to: idealAperture, in: profile.sortedApertures
+            ) ?? idealAperture
+        }
 
         exposureCombinations = ExposureCalculator.allCombinations(
             ev100: measuredEV,
             filmISO: profile.filmISO,
             availableApertures: profile.sortedApertures,
             availableShutterSpeeds: profile.sortedShutterSpeeds,
-            compensation: profile.exposureCompensation
+            compensation: profile.exposureCompensation,
+            calibration: calibrate
         )
+    }
+
+    func toggleAperturePriority(currentAperture: Double) {
+        if meterMode == .aperturePriority {
+            meterMode = .auto
+            lockedAperture = nil
+        } else {
+            meterMode = .aperturePriority
+            lockedAperture = currentAperture
+            lockedShutterSpeed = nil
+        }
+    }
+
+    func toggleShutterPriority(currentShutter: Double) {
+        if meterMode == .shutterPriority {
+            meterMode = .auto
+            lockedShutterSpeed = nil
+        } else {
+            meterMode = .shutterPriority
+            lockedShutterSpeed = currentShutter
+            lockedAperture = nil
+        }
+    }
+
+    func setLockedAperture(_ value: Double) {
+        lockedAperture = value
+    }
+
+    func setLockedShutterSpeed(_ value: Double) {
+        lockedShutterSpeed = value
+    }
+
+    // MARK: - Camera Discovery
+
+    private func discoverCameras() {
+        let discovery = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInUltraWideCamera, .builtInWideAngleCamera, .builtInTelephotoCamera],
+            mediaType: .video,
+            position: .back
+        )
+
+        availableCameras = discovery.devices.map { device in
+            let focal = Int(device.nominalFocalLengthIn35mmFilm)
+            let label: String
+            switch device.deviceType {
+            case .builtInUltraWideCamera: label = "\(focal)mm"
+            case .builtInTelephotoCamera: label = "\(focal)mm"
+            default: label = "\(focal)mm"
+            }
+            return CameraLens(
+                id: device.uniqueID,
+                deviceType: device.deviceType,
+                focalLength: focal,
+                label: label
+            )
+        }
+
+        // Default to wide-angle camera
+        if activeCameraID.isEmpty, let wide = discovery.devices.first(where: { $0.deviceType == .builtInWideAngleCamera }) {
+            activeCameraID = wide.uniqueID
+        }
+    }
+
+    func switchCamera(to lens: CameraLens) {
+        guard lens.id != activeCameraID else { return }
+        guard let session = captureSession else { return }
+
+        let discovery = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInUltraWideCamera, .builtInWideAngleCamera, .builtInTelephotoCamera],
+            mediaType: .video,
+            position: .back
+        )
+
+        guard let newDevice = discovery.devices.first(where: { $0.uniqueID == lens.id }) else { return }
+
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+
+            session.beginConfiguration()
+
+            // Remove old input
+            if let oldInput = self.currentInput {
+                session.removeInput(oldInput)
+            }
+
+            // Add new input
+            do {
+                let newInput = try AVCaptureDeviceInput(device: newDevice)
+                if session.canAddInput(newInput) {
+                    session.addInput(newInput)
+                    self.currentInput = newInput
+                }
+
+                try newDevice.lockForConfiguration()
+                if newDevice.isExposureModeSupported(.continuousAutoExposure) {
+                    newDevice.exposureMode = .continuousAutoExposure
+                }
+                newDevice.unlockForConfiguration()
+            } catch {
+                // Switch failed
+            }
+
+            session.commitConfiguration()
+
+            DispatchQueue.main.async {
+                self.captureDevice = newDevice
+                self.activeCameraID = lens.id
+                self.observations.removeAll()
+                self.hasInitialReading = false
+                self.observeExposure()
+                self.observeFocus()
+            }
+        }
     }
 
     // MARK: - Camera Session Setup
@@ -126,15 +323,27 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         let session = AVCaptureSession()
         session.sessionPreset = .medium
 
-        guard let device = AVCaptureDevice.default(
-            .builtInWideAngleCamera, for: .video, position: .back
-        ) else { return }
+        // Use the active camera (from discovery) or fall back to default
+        let device: AVCaptureDevice?
+        if !activeCameraID.isEmpty {
+            let discovery = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [.builtInUltraWideCamera, .builtInWideAngleCamera, .builtInTelephotoCamera],
+                mediaType: .video,
+                position: .back
+            )
+            device = discovery.devices.first(where: { $0.uniqueID == activeCameraID })
+        } else {
+            device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+        }
+
+        guard let device else { return }
 
         do {
             let input = try AVCaptureDeviceInput(device: device)
             if session.canAddInput(input) {
                 session.addInput(input)
             }
+            self.currentInput = input
 
             let output = AVCaptureVideoDataOutput()
             output.videoSettings = [
@@ -167,29 +376,25 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         from connection: AVCaptureConnection
     ) {
         // Process every 3rd frame to save power
-        MainActor.assumeIsolated {
-            frameSkipCounter += 1
-        }
-        // Use a simple counter approach — not perfectly thread-safe but fine for skip logic
+        frameSkipCounter += 1
         guard frameSkipCounter % 3 == 0 else { return }
 
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
 
-        // Downscale + monochrome for the lo-fi preview
-        let scale: CGFloat = 0.15
+        // Downscale + high-contrast monochrome for the scene preview window
+        let scale: CGFloat = 0.2
         let scaled = ciImage
             .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
 
+        // Convert to grayscale with high contrast so bright/dark areas are clearly visible
         let mono = scaled
-            .applyingFilter("CIColorMonochrome", parameters: [
-                "inputColor": CIColor(red: 0.9, green: 0.9, blue: 0.85),
-                "inputIntensity": 1.0
-            ])
+            .applyingFilter("CIPhotoEffectNoir")
             .applyingFilter("CIColorControls", parameters: [
-                "inputContrast": 1.3,
-                "inputBrightness": -0.05
+                "inputContrast": 1.6,
+                "inputBrightness": 0.0,
+                "inputSaturation": 0.0
             ])
 
         let extent = mono.extent
@@ -264,6 +469,19 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         observations = [durationObs, isoObs]
     }
 
+    // MARK: - Focus Observation
+
+    private func observeFocus() {
+        guard let device = captureDevice else { return }
+
+        let focusObs = device.observe(\.lensPosition, options: [.new]) { [weak self] dev, _ in
+            DispatchQueue.main.async {
+                self?.focusPosition = dev.lensPosition
+            }
+        }
+        observations.append(focusObs)
+    }
+
     // MARK: - EV Calculation
 
     private func recalculateEV() {
@@ -294,6 +512,14 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         hasInitialReading = true
         measuredEV = 12.0
 
+        // Fake available cameras
+        availableCameras = [
+            CameraLens(id: "sim-ultra", deviceType: .builtInUltraWideCamera, focalLength: 13, label: "13mm"),
+            CameraLens(id: "sim-wide", deviceType: .builtInWideAngleCamera, focalLength: 26, label: "26mm"),
+            CameraLens(id: "sim-tele", deviceType: .builtInTelephotoCamera, focalLength: 77, label: "77mm"),
+        ]
+        activeCameraID = "sim-wide"
+
         // Generate a fake gradient preview image
         generateSimulatorPreview()
 
@@ -302,6 +528,9 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
             self.simulatorPhase += 0.1
             let ev = 11.5 + 3.5 * sin(self.simulatorPhase)
             self.measuredEV = self.measuredEV + self.smoothingFactor * (ev - self.measuredEV)
+
+            // Fake oscillating focus position
+            self.focusPosition = Float(0.5 + 0.4 * sin(self.simulatorPhase * 0.7))
 
             // Update fake histogram based on EV
             self.generateSimulatorHistogram(ev: self.measuredEV)

@@ -30,7 +30,7 @@ struct ProfileListView: View {
                             if profile.isSelected {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 20))
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(.primary)
                             }
                         }
                         .contentShape(Rectangle())
@@ -47,7 +47,7 @@ struct ProfileListView: View {
                         } label: {
                             Label("Edit", systemImage: "pencil")
                         }
-                        .tint(.orange)
+                        .tint(.gray)
                     }
                 }
             }
@@ -73,6 +73,7 @@ struct ProfileListView: View {
                 ProfileEditorView(profile: profile)
             }
         }
+        .tint(.primary)
     }
 
     private func selectProfile(_ profile: CameraProfile) {
