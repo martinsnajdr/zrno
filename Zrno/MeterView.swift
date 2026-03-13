@@ -9,7 +9,7 @@ struct MeterView: View {
     let shutterSpeed: Double
     let iso: Int
     let measuredEV: Double
-    let focusDistance: String
+    let meterReliability: MeterReliability
     let profileName: String
     @Binding var compensation: Double
     let meterMode: MeterMode
@@ -182,19 +182,27 @@ struct MeterView: View {
 
             Spacer().frame(height: 8)
 
-            // EV + focus distance
-            HStack(spacing: 12) {
-                Text("EV \(ExposureCalculator.formatEV(measuredEV))")
-                    .font(.system(size: 13, weight: .regular, design: .monospaced))
-                    .foregroundStyle(theme.secondaryColor)
-                    .accessibilityIdentifier("evLabel")
+            // EV or exposure warning
+            evDisplay
+                .accessibilityIdentifier("evLabel")
+        }
+    }
 
-                if !focusDistance.isEmpty {
-                    Text(focusDistance)
-                        .font(.system(size: 13, weight: .regular, design: .monospaced))
-                        .foregroundStyle(theme.secondaryColor)
-                }
-            }
+    @ViewBuilder
+    private var evDisplay: some View {
+        switch meterReliability {
+        case .lowLight:
+            Text("SENSOR LOW LIGHT LIMIT")
+                .font(.system(size: 13, weight: .regular, design: .monospaced))
+                .foregroundStyle(theme.accentColor.opacity(0.6))
+        case .overExposed:
+            Text("SENSOR BRIGHT LIGHT LIMIT")
+                .font(.system(size: 13, weight: .regular, design: .monospaced))
+                .foregroundStyle(theme.accentColor.opacity(0.6))
+        case .normal:
+            Text("EV \(ExposureCalculator.formatEV(measuredEV))")
+                .font(.system(size: 13, weight: .regular, design: .monospaced))
+                .foregroundStyle(theme.secondaryColor)
         }
     }
 
@@ -296,7 +304,7 @@ struct MeterView: View {
             shutterSpeed: 1.0 / 125,
             iso: 400,
             measuredEV: 12.3,
-            focusDistance: "1.2m",
+            meterReliability: .normal,
             profileName: "Mamiya 7",
             compensation: .constant(0.0),
             meterMode: .auto,

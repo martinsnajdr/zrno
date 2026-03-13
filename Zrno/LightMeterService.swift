@@ -28,6 +28,12 @@ enum MeterMode: String, Codable {
     case shutterPriority
 }
 
+enum MeterReliability {
+    case normal
+    case lowLight   // camera near limits, readings approximate
+    case overExposed // sensor saturated
+}
+
 @Observable
 final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoDataOutputSampleBufferDelegate {
 
@@ -55,8 +61,8 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
     var availableCameras: [CameraLens] = []
     var activeCameraID: String = ""
 
-    // Focus distance (0.0 = near, 1.0 = far)
-    var focusPosition: Float = 1.0
+    // Reliability indicator (derived from device limits)
+    var meterReliability: MeterReliability = .normal
 
     // Priority mode
     var meterMode: MeterMode = .auto
@@ -81,6 +87,8 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
     private var hasInitialReading = false
     private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
     nonisolated(unsafe) private var frameSkipCounter = 0
+    // Low-light extension: camera's report of how many stops off-target
+    private var exposureTargetOffset: Double = 0.0
 
     #if targetEnvironment(simulator)
     private var simulatorTimer: Timer?
@@ -117,7 +125,6 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         discoverCameras()
         setupSession()
         observeExposure()
-        observeFocus()
         sessionQueue.async { [weak self] in
             self?.captureSession?.startRunning()
             DispatchQueue.main.async {
@@ -331,7 +338,6 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
                 self.observations.removeAll()
                 self.hasInitialReading = false
                 self.observeExposure()
-                self.observeFocus()
             }
         }
     }
@@ -518,20 +524,14 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
             }
         }
 
-        observations = [durationObs, isoObs]
-    }
-
-    // MARK: - Focus Observation
-
-    private func observeFocus() {
-        guard let device = captureDevice else { return }
-
-        let focusObs = device.observe(\.lensPosition, options: [.new]) { [weak self] dev, _ in
+        let offsetObs = device.observe(\.exposureTargetOffset, options: [.new]) { [weak self] dev, _ in
             DispatchQueue.main.async {
-                self?.focusPosition = dev.lensPosition
+                self?.exposureTargetOffset = Double(dev.exposureTargetOffset)
+                self?.recalculateEV()
             }
         }
-        observations.append(focusObs)
+
+        observations = [durationObs, isoObs, offsetObs]
     }
 
     // MARK: - EV Calculation
@@ -539,13 +539,49 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
     private func recalculateEV() {
         guard cameraExposureDuration > 0, cameraISO > 0, cameraAperture > 0 else { return }
 
-        let rawEV = ExposureCalculator.calculateEV100(
+        var rawEV = ExposureCalculator.calculateEV100(
             aperture: Double(cameraAperture),
             shutterSpeed: cameraExposureDuration,
             iso: Double(cameraISO)
         )
 
         guard rawEV.isFinite else { return }
+
+        // Determine device hardware limits from activeFormat
+        let maxISO: Float
+        let maxDuration: Double
+        let minISO: Float
+        if let format = captureDevice?.activeFormat {
+            maxISO = format.maxISO
+            maxDuration = CMTimeGetSeconds(format.maxExposureDuration)
+            minISO = format.minISO
+        } else {
+            maxISO = 1500; maxDuration = 1.0 / 30.0; minISO = 20
+        }
+
+        // How close to limits (0 = comfortable, 1 = fully maxed)
+        let isoRatio = Double(cameraISO) / Double(maxISO)
+        let durationRatio = maxDuration > 0 ? cameraExposureDuration / maxDuration : 0
+        let atLimit = max(isoRatio, durationRatio)
+
+        // Low-light extension: apply exposureTargetOffset when camera is
+        // near its hardware limits. The offset is the camera's own report
+        // of how many stops underexposed the scene is.
+        let offset = exposureTargetOffset
+        if offset < -0.3, atLimit > 0.7 {
+            rawEV += offset
+        }
+
+        // Update reliability based on actual device state
+        let isoNearMin = Double(cameraISO) / Double(minISO) < 1.3
+        let durationNearMin = cameraExposureDuration < 1.0 / 10000
+        if isoNearMin && durationNearMin {
+            meterReliability = .overExposed
+        } else if atLimit > 0.85 {
+            meterReliability = .lowLight
+        } else {
+            meterReliability = .normal
+        }
 
         if !hasInitialReading {
             measuredEV = rawEV
@@ -580,9 +616,6 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
             self.simulatorPhase += 0.1
             let ev = 11.5 + 3.5 * sin(self.simulatorPhase)
             self.measuredEV = self.measuredEV + self.smoothingFactor * (ev - self.measuredEV)
-
-            // Fake oscillating focus position
-            self.focusPosition = Float(0.5 + 0.4 * sin(self.simulatorPhase * 0.7))
 
             // Update fake histogram based on EV
             self.generateSimulatorHistogram(ev: self.measuredEV)
