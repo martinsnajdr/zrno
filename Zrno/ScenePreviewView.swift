@@ -46,12 +46,12 @@ struct ScenePreviewView: View {
                 .interpolation(.none)
                 .resizable()
                 .aspectRatio(4.0 / 3.0, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: 3))
         } else {
             Rectangle()
                 .fill(theme.primaryColor.opacity(0.03))
                 .aspectRatio(4.0 / 3.0, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: 3))
                 .overlay {
                     Image(systemName: "camera")
                         .font(.system(size: 16))
@@ -125,7 +125,7 @@ struct ScenePreviewView: View {
     }
 }
 
-private extension UIColor {
+extension UIColor {
     var rgbComponents: (r: Double, g: Double, b: Double) {
         var r: CGFloat = 0; var g: CGFloat = 0; var b: CGFloat = 0; var a: CGFloat = 0
         getRed(&r, green: &g, blue: &b, alpha: &a)

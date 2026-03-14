@@ -62,6 +62,8 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
 
     // Histogram data (256 bins for luminance)
     var histogramBins: [Float] = Array(repeating: 0, count: 256)
+    private var smoothedHistogram: [Float] = Array(repeating: 0, count: 256)
+    private let histogramSmoothing: Float = 0.4
 
     // Multi-camera
     var availableCameras: [CameraLens] = []
@@ -548,12 +550,18 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         let monoExtent = mono.extent
         guard let cgImage = ciContext.createCGImage(mono, from: monoExtent) else { return }
 
-        // Build histogram from the scaled grayscale
-        let histogram = self.buildHistogram(from: pixelBuffer)
+        // Build histogram from the scaled grayscale and smooth it
+        let rawHistogram = self.buildHistogram(from: pixelBuffer)
+        let alpha = self.histogramSmoothing
+        var blended = self.smoothedHistogram
+        for i in 0..<256 {
+            blended[i] = blended[i] * (1 - alpha) + rawHistogram[i] * alpha
+        }
+        self.smoothedHistogram = blended
 
         DispatchQueue.main.async { [weak self] in
             self?.previewImage = cgImage
-            self?.histogramBins = histogram
+            self?.histogramBins = blended
         }
     }
 

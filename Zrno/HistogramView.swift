@@ -5,52 +5,72 @@ struct HistogramView: View {
 
     let bins: [Float]
 
+    // Pixel grid: 64 columns × 20 rows
+    private let gridW = 64
+    private let gridH = 20
+
     var body: some View {
-        Canvas { context, size in
-            let barWidth = size.width / CGFloat(bins.count)
-            let graphHeight = size.height - 1 // Leave 1pt for baseline
-
-            // Fill under the curve
-            var path = Path()
-            path.move(to: CGPoint(x: 0, y: graphHeight))
-
-            for (i, value) in bins.enumerated() {
-                let x = CGFloat(i) * barWidth
-                let h = CGFloat(value) * graphHeight
-                path.addLine(to: CGPoint(x: x, y: graphHeight - h))
-            }
-            path.addLine(to: CGPoint(x: size.width, y: graphHeight))
-            path.closeSubpath()
-
-            context.fill(path, with: .linearGradient(
-                Gradient(colors: [
-                    theme.primaryColor.opacity(0.35),
-                    theme.primaryColor.opacity(0.05)
-                ]),
-                startPoint: CGPoint(x: 0, y: 0),
-                endPoint: CGPoint(x: 0, y: graphHeight)
-            ))
-
-            // Stroke the top edge
-            var strokePath = Path()
-            for (i, value) in bins.enumerated() {
-                let x = CGFloat(i) * barWidth
-                let h = CGFloat(value) * graphHeight
-                let point = CGPoint(x: x, y: graphHeight - h)
-                if i == 0 {
-                    strokePath.move(to: point)
-                } else {
-                    strokePath.addLine(to: point)
-                }
-            }
-            context.stroke(strokePath, with: .color(theme.primaryColor.opacity(0.6)), lineWidth: 1)
-
-            // Bottom baseline
-            var baseline = Path()
-            baseline.move(to: CGPoint(x: 0, y: graphHeight + 0.5))
-            baseline.addLine(to: CGPoint(x: size.width, y: graphHeight + 0.5))
-            context.stroke(baseline, with: .color(theme.primaryColor.opacity(0.2)), lineWidth: 0.5)
+        if let img = histogramImage() {
+            Image(decorative: img, scale: 1.0)
+                .interpolation(.none)
+                .resizable()
+                .clipped()
         }
+    }
+
+    private func histogramImage() -> CGImage? {
+        // Downsample 256 bins → 64 columns by averaging groups of 4
+        let binGroupSize = bins.count / gridW
+        var downsampled = [Float](repeating: 0, count: gridW)
+        for col in 0..<gridW {
+            let start = col * binGroupSize
+            let end = min(start + binGroupSize, bins.count)
+            var sum: Float = 0
+            for i in start..<end { sum += bins[i] }
+            downsampled[col] = sum / Float(end - start)
+        }
+
+        // Normalize to 0...1
+        let peak = downsampled.max() ?? 1
+        guard peak > 0 else { return nil }
+        for i in 0..<gridW { downsampled[i] /= peak }
+
+        // Resolve colors
+        let bgColor = theme.effectiveIsDark ? theme.primaryColor : theme.backgroundColor
+        let fgColor = theme.effectiveIsDark ? theme.backgroundColor : theme.primaryColor
+        let bgRGB = UIColor(bgColor).rgbComponents
+        let fgRGB = UIColor(fgColor).rgbComponents
+
+        // Build pixel buffer
+        var pixels = [UInt8](repeating: 0, count: gridW * gridH * 4)
+        for col in 0..<gridW {
+            let fillHeight = Int(round(downsampled[col] * Float(gridH)))
+            for row in 0..<gridH {
+                let dstOffset = (row * gridW + col) * 4
+                // row 0 = top of image
+                let rowFromBottom = gridH - 1 - row
+                let filled = rowFromBottom < fillHeight
+                // Filled pixels get foreground at partial opacity for gradient feel
+                let opacity = filled ? (0.3 + 0.7 * Double(rowFromBottom) / Double(gridH)) : 0.0
+                let r = bgRGB.r * (1 - opacity) + fgRGB.r * opacity
+                let g = bgRGB.g * (1 - opacity) + fgRGB.g * opacity
+                let b = bgRGB.b * (1 - opacity) + fgRGB.b * opacity
+                pixels[dstOffset + 0] = UInt8(clamping: Int(r * 255))
+                pixels[dstOffset + 1] = UInt8(clamping: Int(g * 255))
+                pixels[dstOffset + 2] = UInt8(clamping: Int(b * 255))
+                pixels[dstOffset + 3] = 255
+            }
+        }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: &pixels,
+            width: gridW, height: gridH,
+            bitsPerComponent: 8, bytesPerRow: gridW * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        return ctx.makeImage()
     }
 }
 
