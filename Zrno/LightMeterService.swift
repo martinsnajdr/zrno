@@ -28,10 +28,16 @@ enum MeterMode: String, Codable {
     case shutterPriority
 }
 
-enum MeterReliability {
+enum MeterReliability: Equatable {
     case normal
-    case lowLight   // camera near limits, readings approximate
-    case overExposed // sensor saturated
+    case lowLight       // camera near limits, readings approximate
+    case overExposed    // sensor saturated
+}
+
+enum ExposureStatus: Equatable {
+    case correct
+    case underExposed
+    case overExposed
 }
 
 @Observable
@@ -63,6 +69,9 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
 
     // Reliability indicator (derived from device limits)
     var meterReliability: MeterReliability = .normal
+
+    // Exposure status for priority modes (locked axis)
+    var exposureStatus: ExposureStatus = .correct
 
     // Pinhole mode
     var isPinholeMode: Bool = false
@@ -237,6 +246,54 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
             compensation: profile.exposureCompensation,
             calibration: calibrate
         )
+
+        // Exposure status for priority modes: does the locked value have a valid combo?
+        if meterMode != .auto {
+            var lockedValueHasCombo = true
+
+            switch meterMode {
+            case .aperturePriority:
+                if let locked = lockedAperture {
+                    lockedValueHasCombo = exposureCombinations.contains { abs($0.aperture - locked) < 0.01 }
+                }
+            case .shutterPriority:
+                if let locked = lockedShutterSpeed {
+                    lockedValueHasCombo = exposureCombinations.contains {
+                        locked > 0 && abs(log2($0.shutterSpeed) - log2(locked)) < 0.1
+                    }
+                }
+            case .auto:
+                break
+            }
+
+            if lockedValueHasCombo {
+                exposureStatus = .correct
+            } else {
+                // Direction: compare recommended value to ideal value.
+                // If recommended lets in less light than needed → underexposed.
+                switch meterMode {
+                case .aperturePriority:
+                    // Free axis is shutter. Recommended snapped to nearest available.
+                    // If recommended is faster (shorter) than ideal → less light → underexposed.
+                    let idealShutter = ExposureCalculator.shutterSpeed(
+                        forAperture: lockedAperture ?? 5.6, ev100: adjustedEV, filmISO: profile.filmISO
+                    )
+                    exposureStatus = recommendedShutterSpeed < idealShutter ? .underExposed : .overExposed
+                case .shutterPriority:
+                    // Free axis is aperture. Recommended snapped to nearest available.
+                    // If recommended is narrower (larger f-number) than ideal → less light → underexposed.
+                    let actualSpeed = calibrate(lockedShutterSpeed ?? (1.0 / 125))
+                    let idealAperture = ExposureCalculator.aperture(
+                        forShutterSpeed: actualSpeed, ev100: adjustedEV, filmISO: profile.filmISO
+                    )
+                    exposureStatus = recommendedAperture > idealAperture ? .underExposed : .overExposed
+                default:
+                    break
+                }
+            }
+        } else {
+            exposureStatus = exposureCombinations.isEmpty ? .underExposed : .correct
+        }
     }
 
     func toggleAperturePriority(currentAperture: Double) {

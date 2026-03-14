@@ -9,8 +9,8 @@ private struct ItemCenterKey: PreferenceKey {
 }
 
 /// Horizontal scroll-to-select picker for locked values in priority mode.
-/// Variable-width cells. Whichever item's center is closest to the viewport
-/// center when scrolling stops gets selected (magnet behavior).
+/// When `isLocked` is false, only the selected value is visible (like a plain label).
+/// When `isLocked` is true, neighboring values fade in and the picker becomes scrollable.
 struct PriorityValuePicker: View {
     @Environment(\.appTheme) private var theme
 
@@ -19,11 +19,11 @@ struct PriorityValuePicker: View {
     let formatter: (Double) -> String
     let onSelect: (Double) -> Void
     var font: Font = .system(size: 15, weight: .bold, design: .monospaced)
-    var onTapSelected: (() -> Void)? = nil
+    var isLocked: Bool = false
+    var onTap: () -> Void = {}
 
     @State private var isInitialized = false
     @State private var centers: [Double: CGFloat] = [:]
-    @State private var viewportCenter: CGFloat = 0
 
     var body: some View {
         GeometryReader { geo in
@@ -37,7 +37,11 @@ struct PriorityValuePicker: View {
                             Text(formatter(value))
                                 .font(font)
                                 .fixedSize(horizontal: true, vertical: false)
-                                .foregroundStyle(theme.primaryColor.opacity(isSelected ? 1.0 : 0.15))
+                                .foregroundStyle(
+                                    isSelected
+                                        ? theme.primaryColor.opacity(isLocked ? 1.0 : 0.85)
+                                        : theme.primaryColor.opacity(isLocked ? 0.15 : 0)
+                                )
                                 .contentShape(Rectangle())
                                 .id(value)
                                 .background(
@@ -50,9 +54,9 @@ struct PriorityValuePicker: View {
                                     }
                                 )
                                 .onTapGesture {
-                                    if isSelected, let onTapSelected {
-                                        onTapSelected()
-                                    } else {
+                                    if isSelected {
+                                        onTap()
+                                    } else if isLocked {
                                         withAnimation(.easeOut(duration: 0.2)) {
                                             proxy.scrollTo(value, anchor: .center)
                                         }
@@ -62,13 +66,15 @@ struct PriorityValuePicker: View {
                         }
                     }
                     .padding(.horizontal, halfWidth)
+                    .frame(height: geo.size.height)
                 }
+                .scrollDisabled(!isLocked)
                 .coordinateSpace(name: "picker")
                 .onPreferenceChange(ItemCenterKey.self) { newCenters in
                     centers = newCenters
                 }
                 .onScrollPhaseChange { _, newPhase in
-                    guard isInitialized else { return }
+                    guard isInitialized, isLocked else { return }
                     if newPhase == .idle {
                         snapToNearest(proxy: proxy, viewportCenter: halfWidth)
                     }
@@ -86,13 +92,14 @@ struct PriorityValuePicker: View {
                 }
             }
         }
+        .animation(.easeInOut(duration: 0.25), value: isLocked)
         .mask(
             HStack(spacing: 0) {
                 LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
-                    .frame(width: 32)
+                    .frame(width: isLocked ? 32 : 0)
                 Color.black
                 LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
-                    .frame(width: 32)
+                    .frame(width: isLocked ? 32 : 0)
             }
         )
     }

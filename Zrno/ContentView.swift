@@ -186,6 +186,7 @@ struct ContentView: View {
                     iso: activeProfile?.filmISO ?? 400,
                     measuredEV: lightMeter.measuredEV,
                     meterReliability: lightMeter.meterReliability,
+                    exposureStatus: lightMeter.exposureStatus,
                     profileName: activeProfile?.name ?? "",
                     compensation: Binding(
                         get: { activeProfile?.exposureCompensation ?? 0 },

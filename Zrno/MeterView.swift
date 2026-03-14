@@ -10,6 +10,7 @@ struct MeterView: View {
     let iso: Int
     let measuredEV: Double
     let meterReliability: MeterReliability
+    let exposureStatus: ExposureStatus
     let profileName: String
     @Binding var compensation: Double
     let meterMode: MeterMode
@@ -139,65 +140,51 @@ struct MeterView: View {
                     .frame(height: 90)
                     .accessibilityIdentifier("shutterSpeedLabel")
             } else {
-                // Classic: aperture — tap to lock, inline picker when locked
-                if isApertureLocked {
-                    PriorityValuePicker(
-                        values: availableApertures,
-                        selectedValue: aperture,
-                        formatter: ExposureCalculator.formatAperture,
-                        onSelect: onApertureSelect,
-                        font: .system(size: 44, weight: .ultraLight, design: theme.design),
-                        onTapSelected: onApertureLock
-                    )
-                    .frame(height: 52)
-                    .overlay(alignment: .leading) {
+                // Classic: aperture — tap to lock/unlock, neighbors fade in when locked
+                PriorityValuePicker(
+                    values: availableApertures,
+                    selectedValue: aperture,
+                    formatter: ExposureCalculator.formatAperture,
+                    onSelect: onApertureSelect,
+                    font: .system(size: 44, weight: .ultraLight, design: theme.design),
+                    isLocked: isApertureLocked,
+                    onTap: onApertureLock
+                )
+                .frame(height: 52)
+                .overlay(alignment: .leading) {
+                    if isApertureLocked {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 14))
                             .foregroundStyle(theme.accentColor)
                             .padding(.leading, 6)
+                            .transition(.opacity)
                     }
-                    .accessibilityIdentifier("apertureLabel")
-                } else {
-                    Button(action: onApertureLock) {
-                        Text(ExposureCalculator.formatAperture(aperture))
-                            .font(.system(size: 44, weight: .ultraLight, design: theme.design))
-                            .foregroundStyle(theme.primaryColor.opacity(0.85))
-                            .contentTransition(.numericText(value: aperture))
-                    }
-                    .buttonStyle(.plain)
-                    .frame(height: 52)
-                    .accessibilityIdentifier("apertureLabel")
                 }
+                .animation(.easeInOut(duration: 0.25), value: isApertureLocked)
+                .accessibilityIdentifier("apertureLabel")
 
-                // Classic: shutter speed — tap to lock, inline picker when locked
-                if isShutterLocked {
-                    PriorityValuePicker(
-                        values: availableShutterSpeeds,
-                        selectedValue: shutterSpeed,
-                        formatter: ExposureCalculator.formatShutterSpeed,
-                        onSelect: onShutterSelect,
-                        font: .system(size: 78, weight: .bold, design: theme.design),
-                        onTapSelected: onShutterLock
-                    )
-                    .frame(height: 90)
-                    .overlay(alignment: .leading) {
+                // Classic: shutter speed — tap to lock/unlock, neighbors fade in when locked
+                PriorityValuePicker(
+                    values: availableShutterSpeeds,
+                    selectedValue: shutterSpeed,
+                    formatter: ExposureCalculator.formatShutterSpeed,
+                    onSelect: onShutterSelect,
+                    font: .system(size: 78, weight: .bold, design: theme.design),
+                    isLocked: isShutterLocked,
+                    onTap: onShutterLock
+                )
+                .frame(height: 90)
+                .overlay(alignment: .leading) {
+                    if isShutterLocked {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 16))
                             .foregroundStyle(theme.accentColor)
                             .padding(.leading, 6)
+                            .transition(.opacity)
                     }
-                    .accessibilityIdentifier("shutterSpeedLabel")
-                } else {
-                    Button(action: onShutterLock) {
-                        Text(ExposureCalculator.formatShutterSpeed(shutterSpeed))
-                            .font(.system(size: 78, weight: .bold, design: theme.design))
-                            .foregroundStyle(theme.primaryColor)
-                            .contentTransition(.numericText(value: shutterSpeed))
-                    }
-                    .buttonStyle(.plain)
-                    .frame(height: 90)
-                    .accessibilityIdentifier("shutterSpeedLabel")
                 }
+                .animation(.easeInOut(duration: 0.25), value: isShutterLocked)
+                .accessibilityIdentifier("shutterSpeedLabel")
             }
 
             Spacer().frame(height: 8)
@@ -210,16 +197,31 @@ struct MeterView: View {
 
     @ViewBuilder
     private var evDisplay: some View {
-        switch meterReliability {
-        case .lowLight:
-            Text("SENSOR LOW LIGHT LIMIT")
+        if meterReliability == .lowLight {
+            Text("UNRELIABLE – LOW LIGHT")
                 .font(.system(size: 13, weight: .regular, design: .monospaced))
                 .foregroundStyle(theme.accentColor.opacity(0.6))
-        case .overExposed:
-            Text("SENSOR BRIGHT LIGHT LIMIT")
+        } else if meterReliability == .overExposed {
+            Text("UNRELIABLE – BRIGHT LIGHT")
                 .font(.system(size: 13, weight: .regular, design: .monospaced))
                 .foregroundStyle(theme.accentColor.opacity(0.6))
-        case .normal:
+        } else if meterMode != .auto {
+            // Priority mode: show exposure status
+            switch exposureStatus {
+            case .correct:
+                Text("CORRECT EXPOSURE")
+                    .font(.system(size: 13, weight: .regular, design: .monospaced))
+                    .foregroundStyle(theme.secondaryColor)
+            case .underExposed:
+                Text("UNDEREXPOSED")
+                    .font(.system(size: 13, weight: .regular, design: .monospaced))
+                    .foregroundStyle(theme.accentColor.opacity(0.6))
+            case .overExposed:
+                Text("OVEREXPOSED")
+                    .font(.system(size: 13, weight: .regular, design: .monospaced))
+                    .foregroundStyle(theme.accentColor.opacity(0.6))
+            }
+        } else {
             Text("EV \(ExposureCalculator.formatEV(measuredEV))")
                 .font(.system(size: 13, weight: .regular, design: .monospaced))
                 .foregroundStyle(theme.secondaryColor)
@@ -333,6 +335,7 @@ struct MeterView: View {
             iso: 400,
             measuredEV: 12.3,
             meterReliability: .normal,
+            exposureStatus: .correct,
             profileName: "Mamiya 7",
             compensation: .constant(0.0),
             meterMode: .auto,
