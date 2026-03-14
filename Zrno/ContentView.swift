@@ -282,7 +282,7 @@ struct ContentView: View {
             modelContext.insert(generic)
 
             let genericLens = Lens(
-                name: "50mm",
+                name: "–",
                 focalLength: 50,
                 apertures: CameraProfile.basicApertures,
                 isSelected: true
@@ -291,11 +291,13 @@ struct ContentView: View {
             modelContext.insert(genericLens)
         }
 
-        // Always reset Basic profile ranges to hardcoded values
+        // Always reset Basic profile to hardcoded values
         if let basic = allProfiles.first(where: { $0.isDefault }) {
+            basic.name = "Basic"
             basic.apertures = CameraProfile.basicApertures
             basic.shutterSpeeds = CameraProfile.basicShutterSpeeds
-            for lens in basic.lenses where lens.name == "50mm" {
+            for lens in basic.lenses {
+                lens.name = "–"
                 lens.apertures = CameraProfile.basicApertures
             }
         }

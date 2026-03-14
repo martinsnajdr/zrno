@@ -200,27 +200,23 @@ struct MeterView: View {
         if meterReliability == .lowLight {
             Text("UNRELIABLE – LOW LIGHT")
                 .font(.system(size: 13, weight: .regular, design: .monospaced))
-                .foregroundStyle(theme.accentColor.opacity(0.6))
+                .foregroundStyle(theme.primaryColor)
         } else if meterReliability == .overExposed {
             Text("UNRELIABLE – BRIGHT LIGHT")
                 .font(.system(size: 13, weight: .regular, design: .monospaced))
-                .foregroundStyle(theme.accentColor.opacity(0.6))
+                .foregroundStyle(theme.primaryColor)
+        } else if exposureStatus == .underExposed {
+            Text(meterMode == .auto ? "UNDEREXPOSED – EV \(ExposureCalculator.formatEV(measuredEV))" : "UNDEREXPOSED")
+                .font(.system(size: 13, weight: .regular, design: .monospaced))
+                .foregroundStyle(theme.primaryColor)
+        } else if exposureStatus == .overExposed {
+            Text(meterMode == .auto ? "OVEREXPOSED – EV \(ExposureCalculator.formatEV(measuredEV))" : "OVEREXPOSED")
+                .font(.system(size: 13, weight: .regular, design: .monospaced))
+                .foregroundStyle(theme.primaryColor)
         } else if meterMode != .auto {
-            // Priority mode: show exposure status
-            switch exposureStatus {
-            case .correct:
-                Text("CORRECT EXPOSURE")
-                    .font(.system(size: 13, weight: .regular, design: .monospaced))
-                    .foregroundStyle(theme.secondaryColor)
-            case .underExposed:
-                Text("UNDEREXPOSED")
-                    .font(.system(size: 13, weight: .regular, design: .monospaced))
-                    .foregroundStyle(theme.accentColor.opacity(0.6))
-            case .overExposed:
-                Text("OVEREXPOSED")
-                    .font(.system(size: 13, weight: .regular, design: .monospaced))
-                    .foregroundStyle(theme.accentColor.opacity(0.6))
-            }
+            Text("CORRECT EXPOSURE")
+                .font(.system(size: 13, weight: .regular, design: .monospaced))
+                .foregroundStyle(theme.secondaryColor)
         } else {
             Text("EV \(ExposureCalculator.formatEV(measuredEV))")
                 .font(.system(size: 13, weight: .regular, design: .monospaced))

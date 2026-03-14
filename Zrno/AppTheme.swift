@@ -79,14 +79,6 @@ enum ThemeScheme: String, CaseIterable, Codable, Identifiable {
         primaryColor(isDark: isDark).opacity(0.7)
     }
 
-    var previewTint: (r: Double, g: Double, b: Double) {
-        switch self {
-        case .noir: return (0.9, 0.9, 0.85)
-        case .cream: return (0.95, 0.92, 0.82)
-        case .blueSteel: return (0.75, 0.80, 0.90)
-        case .darkroomRed: return (0.85, 0.55, 0.55)
-        }
-    }
 }
 
 // MARK: - Font Design

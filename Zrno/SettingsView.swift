@@ -44,16 +44,8 @@ struct SettingsView: View {
                                 } label: {
                                     HStack(spacing: 14) {
                                         RoundedRectangle(cornerRadius: 4)
-                                            .fill(scheme.backgroundColor(isDark: true))
+                                            .fill(scheme.primaryColor(isDark: theme.effectiveIsDark))
                                             .frame(width: 24, height: 24)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 4)
-                                                    .strokeBorder(scheme.primaryColor(isDark: true), lineWidth: 2)
-                                            )
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 4)
-                                                    .stroke(theme.primaryColor.opacity(0.1), lineWidth: 0.5)
-                                            )
 
                                         Text(scheme.displayName)
                                             .font(.system(size: 15, weight: .regular, design: .monospaced))

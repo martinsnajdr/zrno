@@ -292,7 +292,18 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
                 }
             }
         } else {
-            exposureStatus = exposureCombinations.isEmpty ? .underExposed : .correct
+            if exposureCombinations.isEmpty {
+                // Determine direction: is the scene too bright or too dim for the equipment?
+                let adjustedEV = measuredEV - profile.exposureCompensation
+                let midAperture = profile.activeApertures.sorted()[profile.activeApertures.count / 2]
+                let idealShutter = ExposureCalculator.shutterSpeed(
+                    forAperture: midAperture, ev100: adjustedEV, filmISO: profile.filmISO
+                )
+                let fastest = profile.sortedShutterSpeeds.min() ?? (1.0 / 1000)
+                exposureStatus = idealShutter < fastest ? .overExposed : .underExposed
+            } else {
+                exposureStatus = .correct
+            }
         }
     }
 

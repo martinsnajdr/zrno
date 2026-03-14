@@ -41,19 +41,11 @@ struct ScenePreviewView: View {
 
     @ViewBuilder
     private var cameraContent: some View {
-        if let image {
-            // Monochrome preview using .screen blend:
-            // Black source pixels → show shadow color, white → stay white/bright
-            let tint = theme.scheme.previewTint
-            let shadowColor: Color = theme.effectiveIsDark
-                ? theme.backgroundColor
-                : Color(red: tint.r * 0.12, green: tint.g * 0.12, blue: tint.b * 0.12)
-            Image(decorative: image, scale: 1.0)
+        if let image, let tinted = tintedImage(image) {
+            Image(decorative: tinted, scale: 1.0)
                 .interpolation(.none)
                 .resizable()
                 .aspectRatio(4.0 / 3.0, contentMode: .fit)
-                .blendMode(.screen)
-                .background(shadowColor)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         } else {
             Rectangle()
@@ -88,6 +80,56 @@ struct ScenePreviewView: View {
                     }
                 }
             }
+    }
+
+    /// Remap grayscale CGImage pixels to theme colors, returning a new CGImage.
+    /// Shadow color for dark pixels, highlight color for bright pixels.
+    private func tintedImage(_ source: CGImage) -> CGImage? {
+        let w = source.width
+        let h = source.height
+
+        // Resolve theme colors to RGB components
+        let shadowColor = theme.effectiveIsDark ? theme.backgroundColor : theme.primaryColor
+        let highlightColor = theme.effectiveIsDark ? theme.primaryColor : theme.backgroundColor
+        let shadowRGB = UIColor(shadowColor).rgbComponents
+        let highlightRGB = UIColor(highlightColor).rgbComponents
+
+        // Read source pixels
+        guard let srcData = source.dataProvider?.data,
+              let srcPtr = CFDataGetBytePtr(srcData) else { return nil }
+        let srcBpp = source.bitsPerPixel / 8
+
+        // Create output buffer (RGBA, 8-bit)
+        var pixels = [UInt8](repeating: 255, count: w * h * 4)
+        for y in 0..<h {
+            for x in 0..<w {
+                let srcOffset = y * source.bytesPerRow + x * srcBpp
+                let lum = Double(srcPtr[srcOffset + 1]) / 255.0 // green channel
+                let dstOffset = (y * w + x) * 4
+                pixels[dstOffset + 0] = UInt8(clamping: Int((shadowRGB.r * (1 - lum) + highlightRGB.r * lum) * 255))
+                pixels[dstOffset + 1] = UInt8(clamping: Int((shadowRGB.g * (1 - lum) + highlightRGB.g * lum) * 255))
+                pixels[dstOffset + 2] = UInt8(clamping: Int((shadowRGB.b * (1 - lum) + highlightRGB.b * lum) * 255))
+                pixels[dstOffset + 3] = 255
+            }
+        }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: &pixels,
+            width: w, height: h,
+            bitsPerComponent: 8, bytesPerRow: w * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        return ctx.makeImage()
+    }
+}
+
+private extension UIColor {
+    var rgbComponents: (r: Double, g: Double, b: Double) {
+        var r: CGFloat = 0; var g: CGFloat = 0; var b: CGFloat = 0; var a: CGFloat = 0
+        getRed(&r, green: &g, blue: &b, alpha: &a)
+        return (Double(r), Double(g), Double(b))
     }
 }
 

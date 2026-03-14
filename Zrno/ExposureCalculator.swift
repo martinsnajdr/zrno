@@ -47,6 +47,8 @@ enum ExposureCalculator {
     /// Find the best aperture/shutter combo from available options on the camera profile.
     /// When `calibration` is provided, uses actual (measured) speeds for accuracy
     /// while returning the nominal (dial) speed for display.
+    /// Prefers combos near f/8 + 1/125 and walks diagonally through the grid
+    /// (both aperture and shutter change together) as light varies.
     static func bestExposure(
         ev100: Double,
         filmISO: Int,
@@ -56,37 +58,45 @@ enum ExposureCalculator {
         calibration: ((Double) -> Double)? = nil
     ) -> (aperture: Double, shutterSpeed: Double) {
         let adjustedEV = ev100 - compensation
-        var bestPair: (Double, Double) = (
-            availableApertures.first ?? 5.6,
-            availableShutterSpeeds.first ?? 1.0 / 125
-        )
-        var bestError: Double = .infinity
+        var bestPair: (Double, Double)? = nil
+        var bestScore: Double = .infinity
+        // Fallback: best combo by lowest error when nothing passes accuracy filter
+        var fallbackPair: (Double, Double)? = nil
+        var fallbackError: Double = .infinity
 
         for aperture in availableApertures {
             let idealShutter = self.shutterSpeed(forAperture: aperture, ev100: adjustedEV, filmISO: filmISO)
             guard idealShutter > 0 else { continue }
-            if let nearest = availableShutterSpeeds.min(by: {
+            guard let nearest = availableShutterSpeeds.min(by: {
                 let actual0 = calibration?($0) ?? $0
                 let actual1 = calibration?($1) ?? $1
                 return abs(log2(actual0) - log2(idealShutter)) < abs(log2(actual1) - log2(idealShutter))
-            }) {
-                let actualNearest = calibration?(nearest) ?? nearest
-                let error = abs(log2(actualNearest) - log2(idealShutter))
-                // Prefer combos near f/8 + 1/60s when errors are within 1 stop
-                let newApertureDist = abs(log2(aperture) - log2(8.0))
-                let newShutterDist = abs(log2(nearest) - log2(1.0 / 60.0))
-                let oldApertureDist = abs(log2(bestPair.0) - log2(8.0))
-                let oldShutterDist = abs(log2(bestPair.1) - log2(1.0 / 60.0))
-                let newScore = newApertureDist + newShutterDist
-                let oldScore = oldApertureDist + oldShutterDist
-                if error < bestError - 1.0 || (error < bestError + 1.0 && newScore < oldScore) {
-                    bestError = error
-                    bestPair = (aperture, nearest)
-                }
+            }) else { continue }
+            let actualNearest = calibration?(nearest) ?? nearest
+            let error = abs(log2(actualNearest) - log2(idealShutter))
+
+            // Track fallback (lowest error regardless of threshold)
+            if error < fallbackError {
+                fallbackError = error
+                fallbackPair = (aperture, nearest)
+            }
+
+            guard error < 0.67 else { continue } // must be within 2/3 stop accuracy
+
+            // Distance from ideal center (f/8, 1/125) in stops
+            let apertureDist = abs(log2(aperture) - log2(8.0))
+            let shutterDist = abs(log2(nearest) - log2(1.0 / 125.0))
+            // Use max (Chebyshev) to prefer diagonal movement: both values
+            // change together rather than one staying fixed while the other slides
+            let score = max(apertureDist, shutterDist)
+
+            if score < bestScore {
+                bestScore = score
+                bestPair = (aperture, nearest)
             }
         }
 
-        return bestPair
+        return bestPair ?? fallbackPair ?? (availableApertures.first ?? 5.6, availableShutterSpeeds.first ?? 1.0 / 125)
     }
 
     /// Generate all exposure combinations for the current light level.

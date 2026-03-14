@@ -109,10 +109,12 @@ struct PriorityValuePicker: View {
         let closest = centers.min(by: {
             abs($0.value - viewportCenter) < abs($1.value - viewportCenter)
         })
-        guard let closest, closest.key != selectedValue else { return }
+        guard let closest else { return }
         withAnimation(.easeOut(duration: 0.15)) {
             proxy.scrollTo(closest.key, anchor: .center)
         }
-        onSelect(closest.key)
+        if closest.key != selectedValue {
+            onSelect(closest.key)
+        }
     }
 }
