@@ -64,6 +64,10 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
     // Reliability indicator (derived from device limits)
     var meterReliability: MeterReliability = .normal
 
+    // Pinhole mode
+    var isPinholeMode: Bool = false
+    var uncorrectedShutterSpeed: Double = 0.0
+
     // Priority mode
     var meterMode: MeterMode = .auto
     var lockedAperture: Double?
@@ -166,6 +170,26 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         lastRecommendationEV = adjustedEV
         lastRecommendationTime = now
 
+        // Pinhole path: single fixed aperture, Schwarzschild correction
+        if profile.type == .pinhole {
+            isPinholeMode = true
+            let result = ExposureCalculator.pinholeExposure(
+                ev100: measuredEV,
+                filmISO: profile.filmISO,
+                pinholeAperture: profile.effectivePinholeAperture,
+                compensation: profile.exposureCompensation,
+                schwarzschildP: profile.schwarzschildP
+            )
+            recommendedAperture = profile.effectivePinholeAperture
+            uncorrectedShutterSpeed = result.raw
+            recommendedShutterSpeed = result.corrected
+            exposureCombinations = []
+            return
+        }
+
+        isPinholeMode = false
+        uncorrectedShutterSpeed = 0
+
         let calibrate: (Double) -> Double = { profile.calibratedSpeed(for: $0) }
 
         switch meterMode {
@@ -185,7 +209,6 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
             let locked = lockedAperture ?? profile.activeApertures.first ?? 5.6
             lockedAperture = locked
             recommendedAperture = locked
-            // Use calibrated speed for the calculation
             let idealShutter = ExposureCalculator.shutterSpeed(
                 forAperture: locked, ev100: adjustedEV, filmISO: profile.filmISO
             )
@@ -197,7 +220,6 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
             let locked = lockedShutterSpeed ?? profile.sortedShutterSpeeds.first ?? (1.0 / 125)
             lockedShutterSpeed = locked
             recommendedShutterSpeed = locked
-            // Use the calibrated actual speed for aperture calculation
             let actualSpeed = calibrate(locked)
             let idealAperture = ExposureCalculator.aperture(
                 forShutterSpeed: actualSpeed, ev100: adjustedEV, filmISO: profile.filmISO
@@ -546,6 +568,11 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         )
 
         guard rawEV.isFinite else { return }
+
+        // iPhone auto-exposure targets a brighter mid-tone than the
+        // photographic standard (optimized for HDR/tone-mapped photos).
+        // This systematic offset aligns readings with a handheld meter.
+        rawEV -= 2.0
 
         // Determine device hardware limits from activeFormat
         let maxISO: Float

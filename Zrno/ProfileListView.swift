@@ -35,7 +35,7 @@ struct ProfileListView: View {
                                             Text(profile.name)
                                                 .font(.system(size: 15, weight: .medium, design: .monospaced))
                                                 .foregroundStyle(theme.primaryColor)
-                                            Text("\(profile.lenses.count) lenses · \(profile.sortedShutterSpeeds.count) speeds")
+                                            Text(profileSubtitle(profile))
                                                 .font(.system(size: 11, weight: .regular, design: .monospaced))
                                                 .foregroundStyle(theme.secondaryColor)
                                         }
@@ -44,35 +44,35 @@ struct ProfileListView: View {
                                     }
                                     .buttonStyle(.plain)
 
-                                    // Edit
-                                    Button {
-                                        editingProfile = profile
-                                    } label: {
-                                        Image(systemName: "pencil")
-                                            .font(.system(size: 13, weight: .medium))
-                                            .foregroundStyle(theme.secondaryColor)
-                                            .frame(width: 30, height: 30)
-                                            .background(
-                                                Circle()
-                                                    .fill(theme.backgroundColor)
-                                            )
+                                    // Edit + Delete (hidden for default profile)
+                                    if !profile.isDefault {
+                                        Button {
+                                            editingProfile = profile
+                                        } label: {
+                                            Image(systemName: "pencil")
+                                                .font(.system(size: 13, weight: .medium))
+                                                .foregroundStyle(theme.secondaryColor)
+                                                .frame(width: 30, height: 30)
+                                                .background(
+                                                    Circle()
+                                                        .fill(theme.backgroundColor)
+                                                )
+                                        }
+                                        .buttonStyle(PressableButtonStyle())
+                                        Button {
+                                            modelContext.delete(profile)
+                                        } label: {
+                                            Image(systemName: "trash")
+                                                .font(.system(size: 13, weight: .medium))
+                                                .foregroundStyle(theme.secondaryColor)
+                                                .frame(width: 30, height: 30)
+                                                .background(
+                                                    Circle()
+                                                        .fill(theme.backgroundColor)
+                                                )
+                                        }
+                                        .buttonStyle(PressableButtonStyle())
                                     }
-                                    .buttonStyle(PressableButtonStyle())
-
-                                    // Delete
-                                    Button {
-                                        modelContext.delete(profile)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                            .font(.system(size: 13, weight: .medium))
-                                            .foregroundStyle(theme.secondaryColor)
-                                            .frame(width: 30, height: 30)
-                                            .background(
-                                                Circle()
-                                                    .fill(theme.backgroundColor)
-                                            )
-                                    }
-                                    .buttonStyle(PressableButtonStyle())
                                 }
                             }
                         }
@@ -148,6 +148,16 @@ struct ProfileListView: View {
         .tint(theme.primaryColor)
         .presentationCornerRadius(16)
         .presentationBackground(theme.backgroundColor)
+    }
+
+    private func profileSubtitle(_ profile: CameraProfile) -> String {
+        if profile.isDefault {
+            return "Default light meter"
+        }
+        if profile.type == .pinhole {
+            return "Pinhole f/\(Int(round(profile.effectivePinholeAperture)))"
+        }
+        return "\(profile.lenses.count) lenses · \(profile.sortedShutterSpeeds.count) speeds"
     }
 
     private func selectProfile(_ profile: CameraProfile) {

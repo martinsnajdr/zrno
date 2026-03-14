@@ -24,6 +24,9 @@ struct MeterView: View {
     let onISOTap: () -> Void
     let onApertureLock: () -> Void
     let onShutterLock: () -> Void
+    let isPinholeMode: Bool
+    let pinholeFilmStock: String
+    let uncorrectedShutterSpeed: Double
     let onApertureSelect: (Double) -> Void
     let onShutterSelect: (Double) -> Void
     let onLensSelect: (Lens) -> Void
@@ -120,64 +123,80 @@ struct MeterView: View {
 
     private var exposureControls: some View {
         VStack(spacing: 0) {
-            // Aperture — tap to lock, inline picker when locked
-            if isApertureLocked {
-                PriorityValuePicker(
-                    values: availableApertures,
-                    selectedValue: aperture,
-                    formatter: ExposureCalculator.formatAperture,
-                    onSelect: onApertureSelect,
-                    font: .system(size: 44, weight: .ultraLight, design: theme.design),
-                    onTapSelected: onApertureLock
-                )
-                .frame(height: 52)
-                .overlay(alignment: .leading) {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(theme.accentColor)
-                        .padding(.leading, 6)
-                }
-                .accessibilityIdentifier("apertureLabel")
-            } else {
-                Button(action: onApertureLock) {
-                    Text(ExposureCalculator.formatAperture(aperture))
-                        .font(.system(size: 44, weight: .ultraLight, design: theme.design))
-                        .foregroundStyle(theme.primaryColor.opacity(0.85))
-                        .contentTransition(.numericText(value: aperture))
-                }
-                .buttonStyle(.plain)
-                .frame(height: 52)
-                .accessibilityIdentifier("apertureLabel")
-            }
+            if isPinholeMode {
+                // Pinhole: fixed aperture (not interactive)
+                Text(ExposureCalculator.formatAperture(aperture))
+                    .font(.system(size: 44, weight: .ultraLight, design: theme.design))
+                    .foregroundStyle(theme.primaryColor.opacity(0.85))
+                    .frame(height: 52)
+                    .accessibilityIdentifier("apertureLabel")
 
-            // Shutter speed — tap to lock, inline picker when locked
-            if isShutterLocked {
-                PriorityValuePicker(
-                    values: availableShutterSpeeds,
-                    selectedValue: shutterSpeed,
-                    formatter: ExposureCalculator.formatShutterSpeed,
-                    onSelect: onShutterSelect,
-                    font: .system(size: 78, weight: .bold, design: theme.design),
-                    onTapSelected: onShutterLock
-                )
-                .frame(height: 90)
-                .overlay(alignment: .leading) {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(theme.accentColor)
-                        .padding(.leading, 6)
-                }
-                .accessibilityIdentifier("shutterSpeedLabel")
+                // Pinhole: corrected exposure time
+                Text(ExposureCalculator.formatLongExposure(shutterSpeed))
+                    .font(.system(size: 78, weight: .bold, design: theme.design))
+                    .foregroundStyle(theme.primaryColor)
+                    .frame(height: 90)
+                    .accessibilityIdentifier("shutterSpeedLabel")
             } else {
-                Button(action: onShutterLock) {
-                    Text(ExposureCalculator.formatShutterSpeed(shutterSpeed))
-                        .font(.system(size: 78, weight: .bold, design: theme.design))
-                        .foregroundStyle(theme.primaryColor)
-                        .contentTransition(.numericText(value: shutterSpeed))
+                // Classic: aperture — tap to lock, inline picker when locked
+                if isApertureLocked {
+                    PriorityValuePicker(
+                        values: availableApertures,
+                        selectedValue: aperture,
+                        formatter: ExposureCalculator.formatAperture,
+                        onSelect: onApertureSelect,
+                        font: .system(size: 44, weight: .ultraLight, design: theme.design),
+                        onTapSelected: onApertureLock
+                    )
+                    .frame(height: 52)
+                    .overlay(alignment: .leading) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(theme.accentColor)
+                            .padding(.leading, 6)
+                    }
+                    .accessibilityIdentifier("apertureLabel")
+                } else {
+                    Button(action: onApertureLock) {
+                        Text(ExposureCalculator.formatAperture(aperture))
+                            .font(.system(size: 44, weight: .ultraLight, design: theme.design))
+                            .foregroundStyle(theme.primaryColor.opacity(0.85))
+                            .contentTransition(.numericText(value: aperture))
+                    }
+                    .buttonStyle(.plain)
+                    .frame(height: 52)
+                    .accessibilityIdentifier("apertureLabel")
                 }
-                .buttonStyle(.plain)
-                .frame(height: 90)
-                .accessibilityIdentifier("shutterSpeedLabel")
+
+                // Classic: shutter speed — tap to lock, inline picker when locked
+                if isShutterLocked {
+                    PriorityValuePicker(
+                        values: availableShutterSpeeds,
+                        selectedValue: shutterSpeed,
+                        formatter: ExposureCalculator.formatShutterSpeed,
+                        onSelect: onShutterSelect,
+                        font: .system(size: 78, weight: .bold, design: theme.design),
+                        onTapSelected: onShutterLock
+                    )
+                    .frame(height: 90)
+                    .overlay(alignment: .leading) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(theme.accentColor)
+                            .padding(.leading, 6)
+                    }
+                    .accessibilityIdentifier("shutterSpeedLabel")
+                } else {
+                    Button(action: onShutterLock) {
+                        Text(ExposureCalculator.formatShutterSpeed(shutterSpeed))
+                            .font(.system(size: 78, weight: .bold, design: theme.design))
+                            .foregroundStyle(theme.primaryColor)
+                            .contentTransition(.numericText(value: shutterSpeed))
+                    }
+                    .buttonStyle(.plain)
+                    .frame(height: 90)
+                    .accessibilityIdentifier("shutterSpeedLabel")
+                }
             }
 
             Spacer().frame(height: 8)
@@ -215,13 +234,21 @@ struct MeterView: View {
                     .foregroundStyle(theme.primaryColor)
             }
 
-            // Lens name (swipeable if multiple)
-            if lenses.count > 1 {
-                lensSwiper
-            } else if let lensName = selectedLensName {
-                Text(lensName)
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(theme.primaryColor.opacity(0.7))
+            // Lens name (swipeable if multiple) or film stock for pinhole
+            if isPinholeMode {
+                if !pinholeFilmStock.isEmpty, pinholeFilmStock != "None" {
+                    Text(pinholeFilmStock)
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(theme.primaryColor.opacity(0.7))
+                }
+            } else {
+                if lenses.count > 1 {
+                    lensSwiper
+                } else if let lensName = selectedLensName {
+                    Text(lensName)
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(theme.primaryColor.opacity(0.7))
+                }
             }
 
             // ISO
@@ -324,6 +351,9 @@ struct MeterView: View {
             onISOTap: {},
             onApertureLock: {},
             onShutterLock: {},
+            isPinholeMode: false,
+            pinholeFilmStock: "",
+            uncorrectedShutterSpeed: 0,
             onApertureSelect: { _ in },
             onShutterSelect: { _ in },
             onLensSelect: { _ in },

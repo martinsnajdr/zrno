@@ -16,6 +16,14 @@ struct ProfileEditorView: View {
     @State private var showAddLens = false
     @State private var editingLens: Lens?
 
+    // Pinhole state
+    @State private var cameraType: CameraType = .classic
+    @State private var pinholeDiameterText: String = ""
+    @State private var pinholeFocalLengthText: String = ""
+    @State private var pinholeApertureText: String = ""
+    @State private var schwarzschildPText: String = "1.00"
+    @State private var selectedFilmPreset: String = "None"
+
     private let standardShutterSpeeds: [Double] = ExposureCalculator.standardShutterSpeeds
 
     private var isEditing: Bool { profile != nil }
@@ -25,206 +33,212 @@ struct ProfileEditorView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Camera Name
-                    sheetSection("Camera Name") {
-                        sheetRow(isLast: true) {
-                            TextField("e.g. Leica M6", text: $name)
-                                .font(.system(size: 15, weight: .regular, design: .monospaced))
-                                .foregroundStyle(theme.primaryColor)
+        ZStack(alignment: .top) {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Camera Name
+                        sheetSection("Camera Name") {
+                            sheetRow(isLast: true) {
+                                PlainTextField(
+                                    placeholder: cameraType == .pinhole ? "e.g. Zero Image 2000" : "e.g. Leica M6",
+                                    text: $name,
+                                    textColor: UIColor(theme.primaryColor),
+                                    placeholderColor: UIColor(theme.secondaryColor.opacity(0.5))
+                                )
+                            }
                         }
-                    }
 
-                    // Lenses (only when editing)
-                    if isEditing {
-                        sheetSection("Lenses") {
-                            let lenses = sortedLenses
-                            ForEach(Array(lenses.enumerated()), id: \.element.id) { index, lens in
-                                sheetRow(isLast: index == lenses.count - 1 && lenses.count > 0) {
-                                    HStack(spacing: 12) {
-                                        // Checkmark circle
-                                        Button {
-                                            // Select this lens
-                                            for l in profile?.lenses ?? [] {
-                                                l.isSelected = (l.id == lens.id)
+                        // Camera Type
+                        sheetSection("Camera Type") {
+                            sheetRow(isLast: true) {
+                                cameraTypeToggle
+                            }
+                        }
+
+                        // Pinhole-specific sections
+                        if cameraType == .pinhole {
+                            pinholeApertureSection
+                            filmReciprocitySection
+                        }
+
+                        // Lenses (only when editing, classic only)
+                        if isEditing, cameraType == .classic {
+                            sheetSection("Lenses") {
+                                let lenses = sortedLenses
+                                ForEach(Array(lenses.enumerated()), id: \.element.id) { index, lens in
+                                    sheetRow(isLast: index == lenses.count - 1 && lenses.count > 0) {
+                                        HStack(spacing: 12) {
+                                            // Checkmark circle
+                                            Button {
+                                                // Select this lens
+                                                for l in profile?.lenses ?? [] {
+                                                    l.isSelected = (l.id == lens.id)
+                                                }
+                                            } label: {
+                                                Image(systemName: lens.isSelected ? "checkmark.circle.fill" : "circle")
+                                                    .font(.system(size: 20, weight: .regular))
+                                                    .foregroundStyle(lens.isSelected ? theme.primaryColor : theme.secondaryColor.opacity(0.5))
                                             }
-                                        } label: {
-                                            Image(systemName: lens.isSelected ? "checkmark.circle.fill" : "circle")
-                                                .font(.system(size: 20, weight: .regular))
-                                                .foregroundStyle(lens.isSelected ? theme.primaryColor : theme.secondaryColor.opacity(0.5))
-                                        }
-                                        .buttonStyle(.plain)
+                                            .buttonStyle(.plain)
 
-                                        // Name + info (tappable to edit)
-                                        Button {
-                                            editingLens = lens
-                                        } label: {
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(lens.name)
-                                                    .font(.system(size: 15, weight: .medium, design: .monospaced))
-                                                    .foregroundStyle(theme.primaryColor)
-                                                Text("\(lens.focalLength)mm · \(lens.apertures.count) apertures")
-                                                    .font(.system(size: 11, weight: .regular, design: .monospaced))
+                                            // Name + info (tappable to edit)
+                                            Button {
+                                                editingLens = lens
+                                            } label: {
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(lens.name)
+                                                        .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                                        .foregroundStyle(theme.primaryColor)
+                                                    Text("\(lens.focalLength)mm · \(lens.apertures.count) apertures")
+                                                        .font(.system(size: 11, weight: .regular, design: .monospaced))
+                                                        .foregroundStyle(theme.secondaryColor)
+                                                }
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .contentShape(Rectangle())
+                                            }
+                                            .buttonStyle(.plain)
+
+                                            // Edit
+                                            Button {
+                                                editingLens = lens
+                                            } label: {
+                                                Image(systemName: "pencil")
+                                                    .font(.system(size: 13, weight: .medium))
                                                     .foregroundStyle(theme.secondaryColor)
+                                                    .frame(width: 30, height: 30)
+                                                    .background(
+                                                        Circle()
+                                                            .fill(theme.backgroundColor)
+                                                    )
                                             }
+                                            .buttonStyle(PressableButtonStyle())
+
+                                            // Delete
+                                            Button {
+                                                if let profile {
+                                                    profile.lenses.removeAll { $0.id == lens.id }
+                                                    modelContext.delete(lens)
+                                                }
+                                            } label: {
+                                                Image(systemName: "trash")
+                                                    .font(.system(size: 13, weight: .medium))
+                                                    .foregroundStyle(theme.secondaryColor)
+                                                    .frame(width: 30, height: 30)
+                                                    .background(
+                                                        Circle()
+                                                            .fill(theme.backgroundColor)
+                                                    )
+                                            }
+                                            .buttonStyle(PressableButtonStyle())
+                                        }
+                                    }
+                                }
+
+                                // Add Lens button
+                                if !lenses.isEmpty {
+                                    VStack(spacing: 0) {
+                                        Rectangle()
+                                            .fill(theme.primaryColor.opacity(0.08))
+                                            .frame(height: 0.5)
+                                            .padding(.leading, 14)
+                                        Button {
+                                            showAddLens = true
+                                        } label: {
+                                            HStack {
+                                                Image(systemName: "plus")
+                                                    .font(.system(size: 14, weight: .medium))
+                                                Text("Add Lens")
+                                                    .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                            }
+                                            .foregroundStyle(theme.primaryColor)
+                                            .padding(.horizontal, 14)
+                                            .padding(.vertical, 12)
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                             .contentShape(Rectangle())
                                         }
                                         .buttonStyle(.plain)
-
-                                        // Edit
+                                    }
+                                } else {
+                                    sheetRow(isLast: true) {
                                         Button {
-                                            editingLens = lens
+                                            showAddLens = true
                                         } label: {
-                                            Image(systemName: "pencil")
-                                                .font(.system(size: 13, weight: .medium))
-                                                .foregroundStyle(theme.secondaryColor)
-                                                .frame(width: 30, height: 30)
-                                                .background(
-                                                    Circle()
-                                                        .fill(theme.backgroundColor)
-                                                )
-                                        }
-                                        .buttonStyle(PressableButtonStyle())
-
-                                        // Delete
-                                        Button {
-                                            if let profile {
-                                                profile.lenses.removeAll { $0.id == lens.id }
-                                                modelContext.delete(lens)
+                                            HStack {
+                                                Image(systemName: "plus")
+                                                    .font(.system(size: 14, weight: .medium))
+                                                Text("Add Lens")
+                                                    .font(.system(size: 15, weight: .medium, design: .monospaced))
                                             }
-                                        } label: {
-                                            Image(systemName: "trash")
-                                                .font(.system(size: 13, weight: .medium))
-                                                .foregroundStyle(theme.secondaryColor)
-                                                .frame(width: 30, height: 30)
-                                                .background(
-                                                    Circle()
-                                                        .fill(theme.backgroundColor)
-                                                )
+                                            .foregroundStyle(theme.primaryColor)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .contentShape(Rectangle())
                                         }
-                                        .buttonStyle(PressableButtonStyle())
+                                        .buttonStyle(.plain)
                                     }
                                 }
                             }
 
-                            // Add Lens button
-                            if !lenses.isEmpty {
-                                VStack(spacing: 0) {
-                                    Rectangle()
-                                        .fill(theme.primaryColor.opacity(0.08))
-                                        .frame(height: 0.5)
-                                        .padding(.leading, 14)
-                                    Button {
-                                        showAddLens = true
-                                    } label: {
-                                        HStack {
-                                            Image(systemName: "plus")
-                                                .font(.system(size: 14, weight: .medium))
-                                            Text("Add Lens")
-                                                .font(.system(size: 15, weight: .medium, design: .monospaced))
-                                        }
-                                        .foregroundStyle(theme.primaryColor)
-                                        .padding(.horizontal, 14)
-                                        .padding(.vertical, 12)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            } else {
+                            sectionFooter("Each lens defines its own set of apertures.")
+                        }
+
+                        // Shutter Speeds (classic only)
+                        if cameraType == .classic {
+                            sheetSection("Available Shutter Speeds") {
                                 sheetRow(isLast: true) {
-                                    Button {
-                                        showAddLens = true
-                                    } label: {
-                                        HStack {
-                                            Image(systemName: "plus")
-                                                .font(.system(size: 14, weight: .medium))
-                                            Text("Add Lens")
-                                                .font(.system(size: 15, weight: .medium, design: .monospaced))
-                                        }
-                                        .foregroundStyle(theme.primaryColor)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
+                                    shutterSpeedGrid
                                 }
                             }
+
+                            sectionFooter("Select the shutter speeds your camera supports.")
                         }
 
-                        Text("Each lens defines its own set of apertures.")
-                            .font(.system(size: 12, weight: .regular, design: .monospaced))
-                            .foregroundStyle(theme.secondaryColor)
-                            .padding(.leading, 4)
-                            .padding(.top, -18)
-                    }
+                        // Calibration (classic only)
+                        if cameraType == .classic, !selectedShutterSpeeds.isEmpty {
+                            sheetSection("Speed Calibration") {
+                                let speeds = Array(selectedShutterSpeeds).sorted()
+                                ForEach(Array(speeds.enumerated()), id: \.element) { index, speed in
+                                    sheetRow(isLast: index == speeds.count - 1) {
+                                        HStack(spacing: 12) {
+                                            Text(ExposureCalculator.formatShutterSpeed(speed))
+                                                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                                                .foregroundStyle(theme.primaryColor)
+                                                .frame(width: 55, alignment: .leading)
 
-                    // Shutter Speeds
-                    sheetSection("Available Shutter Speeds") {
-                        sheetRow(isLast: true) {
-                            shutterSpeedGrid
-                        }
-                    }
-
-                    Text("Select the shutter speeds your camera supports.")
-                        .font(.system(size: 12, weight: .regular, design: .monospaced))
-                        .foregroundStyle(theme.secondaryColor)
-                        .padding(.leading, 4)
-                        .padding(.top, -18)
-
-                    // Calibration
-                    if !selectedShutterSpeeds.isEmpty {
-                        sheetSection("Speed Calibration") {
-                            let speeds = Array(selectedShutterSpeeds).sorted()
-                            ForEach(Array(speeds.enumerated()), id: \.element) { index, speed in
-                                sheetRow(isLast: index == speeds.count - 1) {
-                                    HStack(spacing: 12) {
-                                        Text(ExposureCalculator.formatShutterSpeed(speed))
-                                            .font(.system(size: 13, weight: .medium, design: .monospaced))
-                                            .foregroundStyle(theme.primaryColor)
-                                            .frame(width: 55, alignment: .leading)
-
-                                        Image(systemName: "arrow.right")
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(theme.secondaryColor)
-                                            .frame(width: 12)
-
-                                        HStack(spacing: 2) {
-                                            Text("1/")
-                                                .font(.system(size: 13, weight: .regular, design: .monospaced))
+                                            Image(systemName: "arrow.right")
+                                                .font(.system(size: 10))
                                                 .foregroundStyle(theme.secondaryColor)
-                                            TextField(
-                                                reciprocalPlaceholder(for: speed),
-                                                text: calibrationBinding(for: speed)
-                                            )
-                                            .font(.system(size: 13, weight: .regular, design: .monospaced))
-                                            .foregroundStyle(theme.primaryColor)
-                                            .keyboardType(.numberPad)
-                                            .frame(width: 50)
-                                        }
+                                                .frame(width: 12)
 
-                                        Spacer()
+                                            HStack(spacing: 2) {
+                                                Text("1/")
+                                                    .font(.system(size: 13, weight: .regular, design: .monospaced))
+                                                    .foregroundStyle(theme.secondaryColor)
+                                                PlainTextField(
+                                                placeholder: reciprocalPlaceholder(for: speed),
+                                                text: calibrationBinding(for: speed),
+                                                font: .monospacedSystemFont(ofSize: 13, weight: .regular),
+                                                textColor: UIColor(theme.primaryColor),
+                                                placeholderColor: UIColor(theme.secondaryColor.opacity(0.5)),
+                                                keyboardType: .numberPad
+                                            )
+                                            .frame(width: 50)
+                                            }
+
+                                            Spacer()
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        Text("Advanced: if you've measured a shutter speed to differ from its marking, enter the actual value. E.g. if 1/125 runs at 1/105, type 105.")
-                            .font(.system(size: 12, weight: .regular, design: .monospaced))
-                            .foregroundStyle(theme.secondaryColor)
-                            .padding(.leading, 4)
-                            .padding(.top, -18)
+                            sectionFooter("Advanced: if you've measured a shutter speed to differ from its marking, enter the actual value. E.g. if 1/125 runs at 1/105, type 105.")
+                        }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 64)
+                    .padding(.bottom, 32)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
-            }
-            .background(theme.backgroundColor)
-            .navigationBarHidden(true)
-            .safeAreaInset(edge: .top) {
+
+                // Floating top bar
                 ZStack {
                     Text("CAMERA")
                         .font(.system(size: 15, weight: .semibold, design: .monospaced))
@@ -265,6 +279,7 @@ struct ProfileEditorView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
+                .frame(maxWidth: .infinity)
                 .background(theme.backgroundColor)
                 .overlay(alignment: .bottom) {
                     LinearGradient(
@@ -277,21 +292,218 @@ struct ProfileEditorView: View {
                     .allowsHitTesting(false)
                 }
             }
-            .onAppear { loadProfile() }
-            .sheet(isPresented: $showAddLens) {
-                if let profile {
-                    LensEditorView(lens: nil, profile: profile)
-                }
+        .background(theme.backgroundColor)
+        .onTapGesture {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
+        .onAppear { loadProfile() }
+        .sheet(isPresented: $showAddLens) {
+            if let profile {
+                LensEditorView(lens: nil, profile: profile)
             }
-            .sheet(item: $editingLens) { lens in
-                if let profile {
-                    LensEditorView(lens: lens, profile: profile)
-                }
+        }
+        .sheet(item: $editingLens) { lens in
+            if let profile {
+                LensEditorView(lens: lens, profile: profile)
             }
         }
         .tint(theme.primaryColor)
         .presentationCornerRadius(16)
         .presentationBackground(theme.backgroundColor)
+    }
+
+    // MARK: - Camera Type Toggle
+
+    private var cameraTypeToggle: some View {
+        HStack(spacing: 8) {
+            ForEach(CameraType.allCases, id: \.self) { type in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        cameraType = type
+                    }
+                } label: {
+                    Text(type.rawValue.uppercased())
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            cameraType == type
+                                ? theme.primaryColor.opacity(0.85)
+                                : theme.primaryColor.opacity(0.06)
+                        )
+                        .foregroundStyle(cameraType == type ? theme.backgroundColor : theme.primaryColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    // MARK: - Pinhole Aperture Section
+
+    private var pinholeApertureSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            sheetSection("Pinhole Aperture") {
+                // Pinhole diameter
+                sheetRow(isLast: false) {
+                    HStack {
+                        Text("Diameter")
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
+                            .foregroundStyle(theme.primaryColor)
+                        Spacer()
+                        HStack(spacing: 4) {
+                            PlainTextField(
+                                placeholder: "0.3",
+                                text: $pinholeDiameterText,
+                                textColor: UIColor(theme.primaryColor),
+                                placeholderColor: UIColor(theme.secondaryColor.opacity(0.5)),
+                                keyboardType: .decimalPad,
+                                textAlignment: .right
+                            )
+                            .frame(width: 60)
+                            Text("mm")
+                                .font(.system(size: 13, weight: .regular, design: .monospaced))
+                                .foregroundStyle(theme.secondaryColor)
+                        }
+                    }
+                }
+                // Focal length
+                sheetRow(isLast: false) {
+                    HStack {
+                        Text("Focal Length")
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
+                            .foregroundStyle(theme.primaryColor)
+                        Spacer()
+                        HStack(spacing: 4) {
+                            PlainTextField(
+                                placeholder: "75",
+                                text: $pinholeFocalLengthText,
+                                textColor: UIColor(theme.primaryColor),
+                                placeholderColor: UIColor(theme.secondaryColor.opacity(0.5)),
+                                keyboardType: .decimalPad,
+                                textAlignment: .right
+                            )
+                            .frame(width: 60)
+                            Text("mm")
+                                .font(.system(size: 13, weight: .regular, design: .monospaced))
+                                .foregroundStyle(theme.secondaryColor)
+                        }
+                    }
+                }
+                // F-number (computed or direct)
+                sheetRow(isLast: true) {
+                    HStack {
+                        Text("F-Number")
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
+                            .foregroundStyle(theme.primaryColor)
+                        Spacer()
+                        if let computed = computedApertureFromFields {
+                            Text("f/\(Int(round(computed)))")
+                                .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(theme.accentColor)
+                        } else {
+                            HStack(spacing: 0) {
+                                Text("f/")
+                                    .font(.system(size: 13, weight: .regular, design: .monospaced))
+                                    .foregroundStyle(theme.secondaryColor)
+                                PlainTextField(
+                                    placeholder: "128",
+                                    text: $pinholeApertureText,
+                                    textColor: UIColor(theme.primaryColor),
+                                    placeholderColor: UIColor(theme.secondaryColor.opacity(0.5)),
+                                    keyboardType: .decimalPad
+                                )
+                                .frame(width: 50)
+                            }
+                        }
+                    }
+                }
+            }
+
+            sectionFooter("Enter diameter and focal length to calculate f-number, or enter f-number directly.")
+        }
+    }
+
+    private var computedApertureFromFields: Double? {
+        guard let d = Double(pinholeDiameterText), d > 0,
+              let f = Double(pinholeFocalLengthText), f > 0 else { return nil }
+        return f / d
+    }
+
+    // MARK: - Film / Reciprocity Section
+
+    private var filmReciprocitySection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            sheetSection("Film / Reciprocity") {
+                // Film preset chips
+                sheetRow(isLast: false) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Film Preset")
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(theme.secondaryColor)
+                        filmPresetGrid
+                    }
+                }
+                // Schwarzschild P value
+                sheetRow(isLast: true) {
+                    HStack(spacing: 8) {
+                        Text("Schwarzschild p")
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
+                            .foregroundStyle(theme.primaryColor)
+                        Spacer()
+                        PlainTextField(
+                            placeholder: "1.31",
+                            text: $schwarzschildPText,
+                            textColor: UIColor(theme.primaryColor),
+                            placeholderColor: UIColor(theme.secondaryColor.opacity(0.5)),
+                            keyboardType: .decimalPad,
+                            textAlignment: .right
+                        )
+                        .frame(width: 60)
+                        .onChange(of: schwarzschildPText) { _, _ in
+                                // If user manually edits, mark as custom
+                                if let p = Double(schwarzschildPText) {
+                                    let matchesPreset = ExposureCalculator.filmReciprocityPresets.contains {
+                                        $0.name == selectedFilmPreset && abs($0.p - p) < 0.001
+                                    }
+                                    if !matchesPreset {
+                                        selectedFilmPreset = "Custom"
+                                    }
+                                }
+                            }
+                    }
+                }
+            }
+
+            sectionFooter("Corrects for reciprocity failure at long exposures. Tc = Tm^p")
+        }
+    }
+
+    private var filmPresetGrid: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+            ForEach(ExposureCalculator.filmReciprocityPresets, id: \.name) { preset in
+                Button {
+                    selectedFilmPreset = preset.name
+                    schwarzschildPText = String(format: "%.2f", preset.p)
+                } label: {
+                    Text(preset.name)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(
+                            selectedFilmPreset == preset.name
+                                ? theme.primaryColor.opacity(0.85)
+                                : theme.primaryColor.opacity(0.06)
+                        )
+                        .foregroundStyle(selectedFilmPreset == preset.name ? theme.backgroundColor : theme.primaryColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     // MARK: - Shutter Speed Grid
@@ -364,6 +576,13 @@ struct ProfileEditorView: View {
         }
     }
 
+    private func sectionFooter(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .regular, design: .monospaced))
+            .foregroundStyle(theme.secondaryColor)
+            .padding(.leading, 4)
+    }
+
     private func sheetRow<Content: View>(isLast: Bool = false, @ViewBuilder content: () -> Content) -> some View {
         VStack(spacing: 0) {
             content()
@@ -403,6 +622,21 @@ struct ProfileEditorView: View {
         filmISO = profile.filmISO
         selectedShutterSpeeds = Set(profile.shutterSpeeds)
         compensation = profile.exposureCompensation
+        cameraType = profile.type
+
+        // Pinhole properties
+        if profile.pinholeDiameterMM > 0 {
+            pinholeDiameterText = String(format: "%g", profile.pinholeDiameterMM)
+        }
+        if profile.pinholeFocalLengthMM > 0 {
+            pinholeFocalLengthText = String(format: "%g", profile.pinholeFocalLengthMM)
+        }
+        if profile.pinholeAperture > 0 {
+            pinholeApertureText = String(format: "%g", profile.pinholeAperture)
+        }
+        schwarzschildPText = String(format: "%.2f", profile.schwarzschildP)
+        selectedFilmPreset = profile.filmPreset
+
         // Load calibration: convert actual speeds back to reciprocal text
         for (nominal, actual) in profile.shutterCalibration {
             if actual >= 1.0 {
@@ -438,9 +672,11 @@ struct ProfileEditorView: View {
         if let profile {
             profile.name = trimmedName
             profile.filmISO = filmISO
+            profile.type = cameraType
             profile.shutterSpeeds = Array(selectedShutterSpeeds).sorted()
             profile.exposureCompensation = compensation
             profile.shutterCalibration = calibration
+            savePinholeProperties(to: profile)
         } else {
             let newProfile = CameraProfile(
                 name: trimmedName,
@@ -450,8 +686,34 @@ struct ProfileEditorView: View {
                 isSelected: false,
                 shutterCalibration: calibration
             )
+            newProfile.type = cameraType
+            savePinholeProperties(to: newProfile)
             modelContext.insert(newProfile)
         }
         dismiss()
+    }
+
+    private func savePinholeProperties(to profile: CameraProfile) {
+        if cameraType == .pinhole {
+            profile.pinholeDiameterMM = Double(pinholeDiameterText) ?? 0
+            profile.pinholeFocalLengthMM = Double(pinholeFocalLengthText) ?? 0
+            profile.pinholeAperture = Double(pinholeApertureText) ?? 128.0
+            profile.schwarzschildP = Double(schwarzschildPText) ?? 1.31
+            profile.filmPreset = selectedFilmPreset
+
+            // Remove lenses — pinhole cameras don't use them
+            for lens in profile.lenses {
+                modelContext.delete(lens)
+            }
+            profile.shutterSpeeds = []
+            profile.shutterCalibration = [:]
+        } else {
+            // Classic — clear pinhole data
+            profile.pinholeDiameterMM = 0
+            profile.pinholeFocalLengthMM = 0
+            profile.pinholeAperture = 0
+            profile.schwarzschildP = 1.0
+            profile.filmPreset = "None"
+        }
     }
 }

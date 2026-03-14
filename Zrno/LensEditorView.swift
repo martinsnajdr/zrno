@@ -18,25 +18,31 @@ struct LensEditorView: View {
     private var isEditing: Bool { lens != nil }
 
     var body: some View {
-        NavigationStack {
+        ZStack(alignment: .top) {
             ScrollView {
                 VStack(spacing: 24) {
                     // Lens Name
                     sheetSection("Lens Name") {
                         sheetRow(isLast: true) {
-                            TextField("e.g. Summicron 50mm f/2", text: $name)
-                                .font(.system(size: 15, weight: .regular, design: .monospaced))
-                                .foregroundStyle(theme.primaryColor)
+                            PlainTextField(
+                                placeholder: "e.g. Summicron 50mm f/2",
+                                text: $name,
+                                textColor: UIColor(theme.primaryColor),
+                                placeholderColor: UIColor(theme.secondaryColor.opacity(0.5))
+                            )
                         }
                     }
 
                     // Focal Length
                     sheetSection("Focal Length (mm)") {
                         sheetRow(isLast: true) {
-                            TextField("e.g. 50", text: $focalLength)
-                                .font(.system(size: 15, weight: .regular, design: .monospaced))
-                                .foregroundStyle(theme.primaryColor)
-                                .keyboardType(.numberPad)
+                            PlainTextField(
+                                placeholder: "e.g. 50",
+                                text: $focalLength,
+                                textColor: UIColor(theme.primaryColor),
+                                placeholderColor: UIColor(theme.secondaryColor.opacity(0.5)),
+                                keyboardType: .numberPad
+                            )
                         }
                     }
 
@@ -47,73 +53,72 @@ struct LensEditorView: View {
                         }
                     }
 
-                    Text("Tap to toggle. Select the f-stops this lens has.")
-                        .font(.system(size: 12, weight: .regular, design: .monospaced))
-                        .foregroundStyle(theme.secondaryColor)
-                        .padding(.leading, 4)
-                        .padding(.top, -18)
+                    sectionFooter("Tap to toggle. Select the f-stops this lens has.")
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .padding(.top, 64)
                 .padding(.bottom, 32)
             }
-            .background(theme.backgroundColor)
-            .navigationBarHidden(true)
-            .safeAreaInset(edge: .top) {
-                ZStack {
-                    Text("LENS")
-                        .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                        .tracking(4)
-                        .foregroundStyle(theme.primaryColor)
 
-                    HStack {
-                        Button { dismiss() } label: {
-                            Text("Cancel")
-                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(theme.primaryColor)
-                                .padding(.horizontal, 16)
-                                .frame(height: 36)
-                                .background(
-                                    Capsule()
-                                        .fill(theme.primaryColor.opacity(theme.subtleOpacity))
-                                )
-                        }
-                        .buttonStyle(.plain)
+            // Floating top bar
+            ZStack {
+                Text("LENS")
+                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                    .tracking(4)
+                    .foregroundStyle(theme.primaryColor)
 
-                        Spacer()
-
-                        Button { save() } label: {
-                            Text("Save")
-                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(theme.primaryColor)
-                                .padding(.horizontal, 16)
-                                .frame(height: 36)
-                                .background(
-                                    Capsule()
-                                        .fill(theme.primaryColor.opacity(theme.subtleOpacity))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .opacity((name.trimmingCharacters(in: .whitespaces).isEmpty || focalLength.isEmpty) ? 0.3 : 1.0)
-                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || focalLength.isEmpty)
+                HStack {
+                    Button { dismiss() } label: {
+                        Text("Cancel")
+                            .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(theme.primaryColor)
+                            .padding(.horizontal, 16)
+                            .frame(height: 36)
+                            .background(
+                                Capsule()
+                                    .fill(theme.primaryColor.opacity(theme.subtleOpacity))
+                            )
                     }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(theme.backgroundColor)
-                .overlay(alignment: .bottom) {
-                    LinearGradient(
-                        colors: [theme.backgroundColor, theme.backgroundColor.opacity(0)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 6)
-                    .offset(y: 6)
-                    .allowsHitTesting(false)
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Button { save() } label: {
+                        Text("Save")
+                            .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(theme.primaryColor)
+                            .padding(.horizontal, 16)
+                            .frame(height: 36)
+                            .background(
+                                Capsule()
+                                    .fill(theme.primaryColor.opacity(theme.subtleOpacity))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .opacity((name.trimmingCharacters(in: .whitespaces).isEmpty || focalLength.isEmpty) ? 0.3 : 1.0)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || focalLength.isEmpty)
                 }
             }
-            .onAppear { loadLens() }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .background(theme.backgroundColor)
+            .overlay(alignment: .bottom) {
+                LinearGradient(
+                    colors: [theme.backgroundColor, theme.backgroundColor.opacity(0)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 6)
+                .offset(y: 6)
+                .allowsHitTesting(false)
+            }
         }
+        .background(theme.backgroundColor)
+        .onTapGesture {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
+        .onAppear { loadLens() }
         .tint(theme.primaryColor)
         .presentationCornerRadius(16)
         .presentationBackground(theme.backgroundColor)
@@ -163,6 +168,13 @@ struct LensEditorView: View {
                     .fill(theme.primaryColor.opacity(theme.subtleOpacity))
             )
         }
+    }
+
+    private func sectionFooter(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .regular, design: .monospaced))
+            .foregroundStyle(theme.secondaryColor)
+            .padding(.leading, 4)
     }
 
     private func sheetRow<Content: View>(isLast: Bool = false, @ViewBuilder content: () -> Content) -> some View {

@@ -1099,3 +1099,159 @@ struct FocalLengthSelectionTests {
         #expect(meter.activeCameraID == "")
     }
 }
+
+// MARK: - Schwarzschild / Pinhole Tests
+
+struct SchwarzschildTests {
+
+    @Test func correctionUnchangedUnderOneSecond() {
+        // Exposures ≤ 1s should not be corrected
+        let result = ExposureCalculator.schwarzschildCorrected(seconds: 0.5, p: 1.31)
+        #expect(abs(result - 0.5) < 0.001)
+
+        let resultOne = ExposureCalculator.schwarzschildCorrected(seconds: 1.0, p: 1.31)
+        #expect(abs(resultOne - 1.0) < 0.001)
+    }
+
+    @Test func correctionHP5At10Seconds() {
+        // HP5+ p=1.31: 10^1.31 ≈ 20.42
+        let result = ExposureCalculator.schwarzschildCorrected(seconds: 10.0, p: 1.31)
+        #expect(abs(result - 20.42) < 0.5)
+    }
+
+    @Test func correctionDelta100At10Seconds() {
+        // Delta 100 p=1.26: 10^1.26 ≈ 18.20
+        let result = ExposureCalculator.schwarzschildCorrected(seconds: 10.0, p: 1.26)
+        #expect(abs(result - 18.20) < 0.5)
+    }
+
+    @Test func correctionTriXAt10Seconds() {
+        // Tri-X p=1.54: 10^1.54 ≈ 34.67
+        let result = ExposureCalculator.schwarzschildCorrected(seconds: 10.0, p: 1.54)
+        #expect(abs(result - 34.67) < 0.5)
+    }
+
+    @Test func correctedAlwaysGreaterThanRawAboveOneSecond() {
+        for p in [1.15, 1.26, 1.31, 1.41, 1.54] {
+            let raw = 5.0
+            let corrected = ExposureCalculator.schwarzschildCorrected(seconds: raw, p: p)
+            #expect(corrected > raw)
+        }
+    }
+}
+
+struct PinholeExposureTests {
+
+    @Test func pinholeProducesLongExposure() {
+        // EV 15 (sunny day), ISO 100, f/256 pinhole
+        // shutterSpeed(f/256, EV15, ISO100) = 256^2 / 2^15 = 65536/32768 = 2.0s
+        let result = ExposureCalculator.pinholeExposure(
+            ev100: 15.0, filmISO: 100, pinholeAperture: 256.0
+        )
+        #expect(result.raw > 1.0)
+        #expect(result.corrected > result.raw) // Schwarzschild increases it
+    }
+
+    @Test func pinholeCorrectedEqualsRawUnderOneSecond() {
+        // EV 20 (very bright), ISO 100, f/128 — should be sub-second
+        let result = ExposureCalculator.pinholeExposure(
+            ev100: 20.0, filmISO: 100, pinholeAperture: 128.0
+        )
+        // At EV 20: t = 128^2 / 2^20 = 16384/1048576 ≈ 0.016s
+        #expect(result.raw < 1.0)
+        #expect(abs(result.corrected - result.raw) < 0.001)
+    }
+
+    @Test func pinholeCompensationShiftsExposure() {
+        let base = ExposureCalculator.pinholeExposure(
+            ev100: 12.0, filmISO: 100, pinholeAperture: 256.0, compensation: 0.0
+        )
+        let compensated = ExposureCalculator.pinholeExposure(
+            ev100: 12.0, filmISO: 100, pinholeAperture: 256.0, compensation: 1.0
+        )
+        // +1 stop compensation should roughly double the raw time
+        #expect(compensated.raw > base.raw * 1.8)
+        #expect(compensated.raw < base.raw * 2.2)
+    }
+}
+
+struct FormatLongExposureTests {
+
+    @Test func subSecond() {
+        let result = ExposureCalculator.formatLongExposure(0.004)
+        #expect(result == "1/250")
+    }
+
+    @Test func seconds() {
+        #expect(ExposureCalculator.formatLongExposure(1.0) == "1s")
+        #expect(ExposureCalculator.formatLongExposure(45.0) == "45s")
+    }
+
+    @Test func minutesAndSeconds() {
+        #expect(ExposureCalculator.formatLongExposure(150.0) == "2m 30s")
+        #expect(ExposureCalculator.formatLongExposure(60.0) == "1m")
+    }
+
+    @Test func hoursAndMinutes() {
+        #expect(ExposureCalculator.formatLongExposure(3700.0) == "1h 1m")
+        #expect(ExposureCalculator.formatLongExposure(3600.0) == "1h")
+    }
+
+    @Test func edgeCases() {
+        #expect(ExposureCalculator.formatLongExposure(0.0) == "—")
+        #expect(ExposureCalculator.formatLongExposure(-1.0) == "—")
+        #expect(ExposureCalculator.formatLongExposure(Double.infinity) == "—")
+    }
+}
+
+struct FilmPresetsTests {
+
+    @Test func presetsNonEmpty() {
+        #expect(!ExposureCalculator.filmReciprocityPresets.isEmpty)
+    }
+
+    @Test func allPValuesGreaterThanOne() {
+        for preset in ExposureCalculator.filmReciprocityPresets {
+            #expect(preset.p > 1.0, "Preset \(preset.name) has p=\(preset.p) which should be > 1.0")
+        }
+    }
+
+    @Test func presetsHaveUniqueNames() {
+        let names = ExposureCalculator.filmReciprocityPresets.map(\.name)
+        #expect(Set(names).count == names.count, "Duplicate preset names found")
+    }
+}
+
+struct CameraTypeTests {
+
+    @Test func defaultTypeIsClassic() {
+        let profile = CameraProfile(name: "Test")
+        #expect(profile.type == .classic)
+    }
+
+    @Test func typeRoundTrips() {
+        let profile = CameraProfile(name: "Test")
+        profile.type = .pinhole
+        #expect(profile.type == .pinhole)
+        #expect(profile.cameraType == "pinhole")
+
+        profile.type = .classic
+        #expect(profile.type == .classic)
+        #expect(profile.cameraType == "classic")
+    }
+
+    @Test func effectivePinholeApertureFromDimensions() {
+        let profile = CameraProfile(name: "Test")
+        profile.pinholeDiameterMM = 0.3
+        profile.pinholeFocalLengthMM = 75.0
+        // f = 75 / 0.3 = 250
+        #expect(abs(profile.effectivePinholeAperture - 250.0) < 0.1)
+    }
+
+    @Test func effectivePinholeApertureFallsBackToDirectValue() {
+        let profile = CameraProfile(name: "Test")
+        profile.pinholeDiameterMM = 0 // not set
+        profile.pinholeAperture = 128.0
+        #expect(abs(profile.effectivePinholeAperture - 128.0) < 0.01)
+    }
+}

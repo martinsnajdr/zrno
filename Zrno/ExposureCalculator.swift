@@ -116,6 +116,54 @@ enum ExposureCalculator {
         }
     }
 
+    // MARK: - Pinhole Exposure
+
+    /// Known reciprocity failure exponents (Tc = Tm^p, Tm in seconds).
+    static let filmReciprocityPresets: [(name: String, p: Double)] = [
+        ("None", 1.0),
+        ("HP5+", 1.31),
+        ("FP4+", 1.26),
+        ("Delta 100", 1.26),
+        ("Delta 400", 1.41),
+        ("Delta 3200", 1.33),
+        ("Pan F+", 1.33),
+        ("SFX", 1.43),
+        ("XP2", 1.31),
+        ("Ortho+", 1.25),
+        ("Kentmere 100", 1.26),
+        ("Kentmere 400", 1.30),
+        ("Tri-X 400", 1.54),
+        ("T-Max 100", 1.15),
+        ("T-Max 400", 1.24),
+        ("Portra 160", 1.30),
+        ("Portra 400", 1.30),
+    ]
+
+    /// Schwarzschild reciprocity correction: Tc = Tm^p.
+    /// Only applies when Tm > 1 second.
+    static func schwarzschildCorrected(seconds: Double, p: Double) -> Double {
+        guard seconds > 1.0 else { return seconds }
+        return pow(seconds, p)
+    }
+
+    /// Compute pinhole exposure with Schwarzschild correction.
+    /// Returns (uncorrected seconds, corrected seconds).
+    /// Maximum pinhole exposure time: 1 day.
+    static let maxPinholeExposure: Double = 86400.0
+
+    static func pinholeExposure(
+        ev100: Double,
+        filmISO: Int,
+        pinholeAperture: Double,
+        compensation: Double = 0.0,
+        schwarzschildP: Double = 1.31
+    ) -> (raw: Double, corrected: Double) {
+        let adjustedEV = ev100 - compensation
+        let raw = shutterSpeed(forAperture: pinholeAperture, ev100: adjustedEV, filmISO: filmISO)
+        let corrected = schwarzschildCorrected(seconds: raw, p: schwarzschildP)
+        return (min(raw, maxPinholeExposure), min(corrected, maxPinholeExposure))
+    }
+
     // MARK: - Nearest Value Snap
 
     /// Find the nearest value in an array (by log-distance for photographic stops).
@@ -158,5 +206,26 @@ enum ExposureCalculator {
     static func formatEV(_ ev: Double) -> String {
         guard ev.isFinite else { return "—" }
         return String(format: "%.1f", ev)
+    }
+
+    /// Format long exposure times: "1/125", "45s", "2m 30s", "1h 15m"
+    static func formatLongExposure(_ seconds: Double) -> String {
+        guard seconds > 0, seconds.isFinite else { return "—" }
+        if seconds < 1.0 {
+            return formatShutterSpeed(seconds)
+        }
+        if seconds < 60 {
+            return "\(Int(round(seconds)))s"
+        }
+        let totalSeconds = Int(round(seconds))
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let secs = totalSeconds % 60
+        if hours > 0 {
+            if minutes > 0 { return "\(hours)h \(minutes)m" }
+            return "\(hours)h"
+        }
+        if secs > 0 { return "\(minutes)m \(secs)s" }
+        return "\(minutes)m"
     }
 }

@@ -1,6 +1,11 @@
 import Foundation
 import SwiftData
 
+enum CameraType: String, Codable, CaseIterable {
+    case classic
+    case pinhole
+}
+
 @Model
 final class CameraProfile {
     var name: String
@@ -14,8 +19,50 @@ final class CameraProfile {
     /// Shutter speed calibration: maps nominal speeds (dial markings) to actual measured speeds.
     var shutterCalibration: [Double: Double]
 
+    /// Whether this is the built-in default profile (cannot be deleted).
+    var isDefault: Bool = false
+
     @Relationship(deleteRule: .cascade, inverse: \Lens.cameraProfile)
     var lenses: [Lens]
+
+    // MARK: - Camera Type
+
+    /// Stored as String for SwiftData compatibility.
+    var cameraType: String = "classic"
+
+    /// Convenience accessor for the camera type enum.
+    var type: CameraType {
+        get { CameraType(rawValue: cameraType) ?? .classic }
+        set { cameraType = newValue.rawValue }
+    }
+
+    // MARK: - Pinhole Properties
+
+    /// Effective f-number of the pinhole (e.g. 128, 256).
+    var pinholeAperture: Double = 128.0
+
+    /// Physical pinhole diameter in mm (0 = not set, user entered f directly).
+    var pinholeDiameterMM: Double = 0.0
+
+    /// Focal length in mm (0 = not set).
+    var pinholeFocalLengthMM: Double = 0.0
+
+    /// Schwarzschild reciprocity correction exponent.
+    var schwarzschildP: Double = 1.0
+
+    /// Name of selected film reciprocity preset ("Custom" if manually overridden).
+    var filmPreset: String = "None"
+
+    /// Effective pinhole aperture computed from diameter and focal length.
+    var computedPinholeAperture: Double? {
+        guard pinholeDiameterMM > 0, pinholeFocalLengthMM > 0 else { return nil }
+        return pinholeFocalLengthMM / pinholeDiameterMM
+    }
+
+    /// The actual pinhole f-number to use: computed from dimensions if available, otherwise the direct value.
+    var effectivePinholeAperture: Double {
+        computedPinholeAperture ?? pinholeAperture
+    }
 
     init(
         name: String,

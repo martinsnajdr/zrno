@@ -133,6 +133,17 @@ struct ContentView: View {
                 lightMeter.updateRecommendation(for: profile, force: true)
             }
         }
+        .onChange(of: activeProfile?.cameraType) { _, _ in
+            // Reset priority modes when switching camera type
+            if activeProfile?.type == .pinhole, lightMeter.meterMode != .auto {
+                lightMeter.meterMode = .auto
+                lightMeter.lockedAperture = nil
+                lightMeter.lockedShutterSpeed = nil
+            }
+            if let profile = activeProfile {
+                lightMeter.updateRecommendation(for: profile, force: true)
+            }
+        }
         .sheet(isPresented: $showProfileList) {
             ProfileListView()
                 .environment(\.appTheme, theme)
@@ -199,6 +210,9 @@ struct ContentView: View {
                             lightMeter.updateRecommendation(for: profile, force: true)
                         }
                     },
+                    isPinholeMode: lightMeter.isPinholeMode,
+                    pinholeFilmStock: activeProfile?.type == .pinhole ? (activeProfile?.filmPreset ?? "") : "",
+                    uncorrectedShutterSpeed: lightMeter.uncorrectedShutterSpeed,
                     onApertureSelect: { value in
                         lightMeter.setLockedAperture(value)
                         if let profile = activeProfile {
@@ -237,7 +251,7 @@ struct ContentView: View {
     }
 
     private func ensureDefaultProfile() {
-        // Migrate old default name
+        // Migrate old profiles: mark "Mamiya 7" / "35mm Camera" as non-default user profiles
         if let old = allProfiles.first(where: { $0.name == "35mm Camera" }) {
             old.name = "Mamiya 7"
             if old.lenses.isEmpty {
@@ -252,28 +266,28 @@ struct ContentView: View {
             }
         }
 
-        guard allProfiles.isEmpty else { return }
-        let defaultProfile = CameraProfile(
-            name: "Mamiya 7",
-            apertures: [4.0, 5.6, 8.0, 11.0, 16.0, 22.0],
-            shutterSpeeds: [
-                1.0 / 500, 1.0 / 250, 1.0 / 125,
-                1.0 / 60, 1.0 / 30, 1.0 / 15, 1.0 / 8,
-                1.0 / 4, 1.0 / 2, 1.0, 2.0, 4.0
-            ],
-            filmISO: 400,
-            isSelected: true
-        )
-        modelContext.insert(defaultProfile)
+        // Ensure the built-in "Basic" profile exists
+        let hasDefault = allProfiles.contains { $0.isDefault }
+        if !hasDefault {
+            let generic = CameraProfile(
+                name: "Basic",
+                apertures: ExposureCalculator.standardApertures,
+                shutterSpeeds: ExposureCalculator.standardShutterSpeeds,
+                filmISO: 400,
+                isSelected: allProfiles.isEmpty
+            )
+            generic.isDefault = true
+            modelContext.insert(generic)
 
-        let defaultLens = Lens(
-            name: "N 80mm f/4 L",
-            focalLength: 80,
-            apertures: [4.0, 5.6, 8.0, 11.0, 16.0, 22.0],
-            isSelected: true
-        )
-        defaultLens.cameraProfile = defaultProfile
-        modelContext.insert(defaultLens)
+            let genericLens = Lens(
+                name: "50mm",
+                focalLength: 50,
+                apertures: ExposureCalculator.standardApertures,
+                isSelected: true
+            )
+            genericLens.cameraProfile = generic
+            modelContext.insert(genericLens)
+        }
     }
 
     private func updateEffectiveAppearance() {
