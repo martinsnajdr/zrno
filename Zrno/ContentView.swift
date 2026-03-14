@@ -20,88 +20,91 @@ struct ContentView: View {
     private var activeProfile: CameraProfile? { selectedProfiles.first }
 
     var body: some View {
-        ZStack {
-            // Solid theme background
-            theme.backgroundColor.ignoresSafeArea()
+        GeometryReader { _ in
+            ZStack {
+                // Solid theme background
+                theme.backgroundColor.ignoresSafeArea()
 
-            if lightMeter.isRunning || !lightMeter.permissionGranted {
-                meterContent
-            } else {
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .tint(theme.secondaryColor)
-                    Text("Starting meter...")
-                        .font(.system(size: 15, weight: .medium, design: theme.design))
-                        .foregroundStyle(theme.secondaryColor)
+                if lightMeter.isRunning || !lightMeter.permissionGranted {
+                    meterContent
+                } else {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .tint(theme.secondaryColor)
+                        Text("Starting meter...")
+                            .font(.system(size: 15, weight: .medium, design: theme.design))
+                            .foregroundStyle(theme.secondaryColor)
+                    }
                 }
-            }
 
-            // Top bar: profiles | ZRNO | settings
-            VStack {
-                HStack {
-                    // Camera profiles (left)
-                    if !isEditingLayout {
-                        Button {
-                            showProfileList = true
-                        } label: {
-                            Image(systemName: "camera.aperture")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundStyle(theme.primaryColor)
-                                .frame(width: 40, height: 40)
-                                .background(theme.primaryColor.opacity(0.06), in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("profileButton")
-                    }
-
-                    Spacer()
-
-                    // Branding (non-interactive)
-                    Text("ZRNO")
-                        .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(theme.primaryColor)
-                        .tracking(4)
-
-                    Spacer()
-
-                    // Settings (right)
-                    if !isEditingLayout {
-                        Button {
-                            showSettings = true
-                        } label: {
-                            Image(systemName: "gearshape")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundStyle(theme.primaryColor)
-                                .frame(width: 40, height: 40)
-                                .background(theme.primaryColor.opacity(0.06), in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("settingsButton")
-                    }
-
-                    // Edit mode done button
-                    if isEditingLayout {
-                        Spacer()
-                        Button("Done") {
-                            withAnimation(.spring(duration: 0.3)) {
-                                isEditingLayout = false
-                                layoutOffsets.save()
+                // Top bar: profiles | ZRNO | settings
+                VStack {
+                    HStack {
+                        // Camera profiles (left)
+                        if !isEditingLayout {
+                            Button {
+                                showProfileList = true
+                            } label: {
+                                Image(systemName: "camera.aperture")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundStyle(theme.primaryColor)
+                                    .frame(width: 40, height: 40)
+                                    .background(theme.primaryColor.opacity(0.06), in: Circle())
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("profileButton")
                         }
-                        .font(.system(size: 15, weight: .semibold, design: theme.design))
-                        .foregroundStyle(theme.primaryColor)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(theme.primaryColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
-                        .transition(.opacity)
-                    }
-                }
-                .padding(.top, 20)
-                .padding(.horizontal, 16)
 
-                Spacer()
+                        Spacer()
+
+                        // Branding (non-interactive)
+                        Text("ZRNO")
+                            .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(theme.primaryColor)
+                            .tracking(4)
+
+                        Spacer()
+
+                        // Settings (right)
+                        if !isEditingLayout {
+                            Button {
+                                showSettings = true
+                            } label: {
+                                Image(systemName: "gearshape")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundStyle(theme.primaryColor)
+                                    .frame(width: 40, height: 40)
+                                    .background(theme.primaryColor.opacity(0.06), in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("settingsButton")
+                        }
+
+                        // Edit mode done button
+                        if isEditingLayout {
+                            Spacer()
+                            Button("Done") {
+                                withAnimation(.spring(duration: 0.3)) {
+                                    isEditingLayout = false
+                                    layoutOffsets.save()
+                                }
+                            }
+                            .font(.system(size: 15, weight: .semibold, design: theme.design))
+                            .foregroundStyle(theme.primaryColor)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(theme.primaryColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                            .transition(.opacity)
+                        }
+                    }
+                    .padding(.top, 20)
+                    .padding(.horizontal, 16)
+
+                    Spacer()
+                }
             }
         }
+        .ignoresSafeArea(.keyboard, edges: .all)
         .environment(\.appTheme, theme)
         .preferredColorScheme(theme.appearanceMode.colorScheme)
         .persistentSystemOverlays(.hidden)

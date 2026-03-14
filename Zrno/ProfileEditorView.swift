@@ -35,6 +35,7 @@ struct ProfileEditorView: View {
     var body: some View {
         ZStack(alignment: .top) {
                 ScrollView {
+
                     VStack(spacing: 24) {
                         // Camera Name
                         sheetSection("Camera Name") {
@@ -344,7 +345,7 @@ struct ProfileEditorView: View {
 
     private var pinholeApertureSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            sheetSection("Pinhole Aperture") {
+            sheetSection("Pinhole aperture") {
                 // Pinhole diameter
                 sheetRow(isLast: false) {
                     HStack {
@@ -400,8 +401,8 @@ struct ProfileEditorView: View {
                         Spacer()
                         if let computed = computedApertureFromFields {
                             Text("f/\(Int(round(computed)))")
-                                .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(theme.accentColor)
+                                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                                .foregroundStyle(theme.secondaryColor)
                         } else {
                             HStack(spacing: 0) {
                                 Text("f/")
@@ -418,6 +419,7 @@ struct ProfileEditorView: View {
                             }
                         }
                     }
+                    .frame(minHeight: 20)
                 }
             }
 
@@ -426,9 +428,15 @@ struct ProfileEditorView: View {
     }
 
     private var computedApertureFromFields: Double? {
-        guard let d = Double(pinholeDiameterText), d > 0,
-              let f = Double(pinholeFocalLengthText), f > 0 else { return nil }
+        guard let d = parseDecimal(pinholeDiameterText), d > 0,
+              let f = parseDecimal(pinholeFocalLengthText), f > 0 else { return nil }
         return f / d
+    }
+
+    /// Parse a decimal string, handling both "." and "," as decimal separator.
+    private func parseDecimal(_ text: String) -> Double? {
+        let normalized = text.replacingOccurrences(of: ",", with: ".")
+        return Double(normalized)
     }
 
     // MARK: - Film / Reciprocity Section
@@ -695,10 +703,11 @@ struct ProfileEditorView: View {
 
     private func savePinholeProperties(to profile: CameraProfile) {
         if cameraType == .pinhole {
-            profile.pinholeDiameterMM = Double(pinholeDiameterText) ?? 0
-            profile.pinholeFocalLengthMM = Double(pinholeFocalLengthText) ?? 0
-            profile.pinholeAperture = Double(pinholeApertureText) ?? 128.0
-            profile.schwarzschildP = Double(schwarzschildPText) ?? 1.31
+            profile.pinholeDiameterMM = parseDecimal(pinholeDiameterText) ?? 0
+            profile.pinholeFocalLengthMM = parseDecimal(pinholeFocalLengthText) ?? 0
+            // Use computed aperture from diameter/focal length if available, otherwise direct entry
+            profile.pinholeAperture = computedApertureFromFields ?? parseDecimal(pinholeApertureText) ?? 128.0
+            profile.schwarzschildP = parseDecimal(schwarzschildPText) ?? 1.31
             profile.filmPreset = selectedFilmPreset
 
             // Remove lenses — pinhole cameras don't use them

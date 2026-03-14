@@ -278,6 +278,74 @@ final class ZrnoUITests: XCTestCase {
                           "Compensation value should change after drag")
     }
 
+    // MARK: - Keyboard Toolbar Test
+
+    @MainActor
+    func testEditorKeyboardDoesNotPushTopbar() throws {
+        // Open profile list
+        let profileButton = app.buttons["profileButton"]
+        guard profileButton.waitForExistence(timeout: 5) else {
+            XCTFail("Profile button not found")
+            return
+        }
+        profileButton.tap()
+
+        // Wait for profile list sheet
+        guard app.staticTexts["Cameras"].waitForExistence(timeout: 3) else {
+            XCTFail("Profile list didn't appear")
+            return
+        }
+
+        // Look for any edit button (pencil icon) to open profile editor
+        // First look for a non-default profile edit button, or the add button
+        let addButton = app.buttons["addProfileButton"]
+        if addButton.waitForExistence(timeout: 2) {
+            addButton.tap()
+        } else {
+            // Try tapping the first edit button
+            let editButtons = app.buttons.matching(identifier: "editProfileButton")
+            if editButtons.count > 0 {
+                editButtons.firstMatch.tap()
+            } else {
+                XCTFail("No edit or add button found")
+                return
+            }
+        }
+
+        // Wait for editor to appear
+        guard app.staticTexts["CAMERA"].waitForExistence(timeout: 3) else {
+            XCTFail("Camera editor didn't appear")
+            return
+        }
+
+        // Take screenshot before keyboard
+        let beforeScreenshot = XCUIScreen.main.screenshot()
+        let beforeAttachment = XCTAttachment(screenshot: beforeScreenshot)
+        beforeAttachment.name = "Before Keyboard"
+        beforeAttachment.lifetime = .keepAlways
+        add(beforeAttachment)
+
+        // Find and tap a text field (camera name input)
+        let textFields = app.textFields
+        if textFields.count > 0 {
+            textFields.firstMatch.tap()
+        }
+
+        // Wait for keyboard
+        Thread.sleep(forTimeInterval: 1.0)
+
+        // Take screenshot with keyboard visible
+        let afterScreenshot = XCUIScreen.main.screenshot()
+        let afterAttachment = XCTAttachment(screenshot: afterScreenshot)
+        afterAttachment.name = "After Keyboard"
+        afterAttachment.lifetime = .keepAlways
+        add(afterAttachment)
+
+        // The CAMERA title should still be visible and not pushed off screen
+        XCTAssertTrue(app.staticTexts["CAMERA"].exists,
+                      "CAMERA topbar title should remain visible when keyboard is shown")
+    }
+
     // MARK: - Launch Performance
 
     @MainActor
