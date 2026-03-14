@@ -64,6 +64,11 @@ final class CameraProfile {
         computedPinholeAperture ?? pinholeAperture
     }
 
+    // MARK: - Basic Profile Defaults
+
+    static let basicApertures: [Double] = [1.4, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0]
+    static let basicShutterSpeeds: [Double] = [1.0/2000, 1.0/1000, 1.0/500, 1.0/250, 1.0/125, 1.0/60, 1.0/30, 1.0/15, 1.0/8, 1.0/4, 1.0/2, 1.0]
+
     init(
         name: String,
         apertures: [Double] = [1.4, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0],

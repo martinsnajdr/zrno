@@ -274,8 +274,6 @@ struct ContentView: View {
         if !hasDefault {
             let generic = CameraProfile(
                 name: "Basic",
-                apertures: ExposureCalculator.standardApertures,
-                shutterSpeeds: ExposureCalculator.standardShutterSpeeds,
                 filmISO: 400,
                 isSelected: allProfiles.isEmpty
             )
@@ -285,11 +283,20 @@ struct ContentView: View {
             let genericLens = Lens(
                 name: "50mm",
                 focalLength: 50,
-                apertures: ExposureCalculator.standardApertures,
+                apertures: CameraProfile.basicApertures,
                 isSelected: true
             )
             genericLens.cameraProfile = generic
             modelContext.insert(genericLens)
+        }
+
+        // Always reset Basic profile ranges to hardcoded values
+        if let basic = allProfiles.first(where: { $0.isDefault }) {
+            basic.apertures = CameraProfile.basicApertures
+            basic.shutterSpeeds = CameraProfile.basicShutterSpeeds
+            for lens in basic.lenses where lens.name == "50mm" {
+                lens.apertures = CameraProfile.basicApertures
+            }
         }
     }
 

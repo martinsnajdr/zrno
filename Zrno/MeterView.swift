@@ -85,10 +85,10 @@ struct MeterView: View {
     // MARK: - Landscape Layout
 
     private var landscapeLayout: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 24) {
             // Left: exposure readings + compensation
             VStack(spacing: 0) {
-                Spacer()
+                Spacer().frame(height: 22)
                 exposureControls
                 Spacer().frame(height: 16)
                 CompensationDialView(compensation: $compensation)
@@ -98,13 +98,14 @@ struct MeterView: View {
 
             // Right: preview + info
             VStack(spacing: 0) {
-                Spacer()
+                Spacer().frame(height: 20)
 
                 ScenePreviewView(
                     image: previewImage,
                     histogramBins: histogramBins,
                     previewMode: $previewMode
                 )
+                .frame(maxHeight: 124)
 
                 Spacer().frame(height: 16)
 
@@ -114,7 +115,7 @@ struct MeterView: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .padding(.top, 8)
+        .padding(.top, 56)
         .animation(.spring(duration: 0.4), value: aperture)
         .animation(.spring(duration: 0.4), value: shutterSpeed)
     }

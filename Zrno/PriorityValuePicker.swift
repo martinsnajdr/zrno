@@ -33,7 +33,7 @@ struct PriorityValuePicker: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ForEach(values, id: \.self) { value in
-                            let isSelected = abs(value - selectedValue) < 0.001
+                            let isSelected = value == selectedValue || (selectedValue != 0 && abs(value - selectedValue) / abs(selectedValue) < 0.001)
                             Text(formatter(value))
                                 .font(font)
                                 .fixedSize(horizontal: true, vertical: false)
@@ -86,7 +86,15 @@ struct PriorityValuePicker: View {
                 }
             }
         }
-        .clipped()
+        .mask(
+            HStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: 32)
+                Color.black
+                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: 32)
+            }
+        )
     }
 
     private func snapToNearest(proxy: ScrollViewProxy, viewportCenter: CGFloat) {
@@ -94,7 +102,7 @@ struct PriorityValuePicker: View {
         let closest = centers.min(by: {
             abs($0.value - viewportCenter) < abs($1.value - viewportCenter)
         })
-        guard let closest, abs(closest.key - selectedValue) > 0.001 else { return }
+        guard let closest, closest.key != selectedValue else { return }
         withAnimation(.easeOut(duration: 0.15)) {
             proxy.scrollTo(closest.key, anchor: .center)
         }
