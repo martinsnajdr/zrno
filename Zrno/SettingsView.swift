@@ -106,11 +106,36 @@ struct SettingsView: View {
                                     .font(.system(size: 15, weight: .semibold, design: .monospaced))
                                     .foregroundStyle(theme.primaryColor)
                                     .tracking(4)
-                                Text("Your best friend when nobody wants to go out with you to take amazing photos")
-                                    .font(.system(size: 13, weight: .regular, design: .monospaced))
-                                    .foregroundStyle(theme.primaryColor.opacity(0.85))
+                                Text("Your best friend when nobody wants to go out with you to take photos.")
+                                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                                    .foregroundStyle(theme.secondaryColor)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        settingsRow(isLast: false) {
+                            Button {
+                                if let url = URL(string: "https://instagram.com/martinsnajdr") {
+                                    UIApplication.shared.open(url)
+                                }
+                            } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text("@martinsnajdr")
+                                            .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                                            .foregroundStyle(theme.primaryColor)
+                                        Spacer()
+                                        Image(systemName: "arrow.up.right")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(theme.secondaryColor)
+                                    }
+                                    Text("If you enjoy the app, please give me a follow and send a photo of you using it. I'd love to feature it in an Instagram story.")
+                                        .font(.system(size: 12, weight: .regular, design: .monospaced))
+                                        .foregroundStyle(theme.secondaryColor)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
                         }
                         settingsRow(isLast: false) {
                             highScoresRow
@@ -188,7 +213,7 @@ struct SettingsView: View {
         let zrnorunHigh = UserDefaults.standard.integer(forKey: RunnerGame.highScoreKey)
         return VStack(alignment: .leading, spacing: 6) {
             Text("High Scores")
-                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                .font(.system(size: 15, weight: .semibold, design: .monospaced))
                 .foregroundStyle(theme.primaryColor)
             HStack(spacing: 4) {
                 Text("Zrnoid")

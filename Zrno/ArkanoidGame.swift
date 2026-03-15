@@ -241,6 +241,7 @@ final class ArkanoidGame {
     func handleTap() {
         if gameOver || won {
             restart()
+            waitingToStart = false  // skip waiting, launch ball immediately
         } else if waitingToStart {
             waitingToStart = false
         }

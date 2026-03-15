@@ -101,6 +101,7 @@ final class RunnerGame {
     func handleTap() {
         if gameOver {
             restart()
+            waitingToStart = false  // skip waiting, start running immediately
         } else if waitingToStart {
             waitingToStart = false
         } else if isOnGround && jumpCooldown == 0 {

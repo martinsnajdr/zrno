@@ -45,6 +45,14 @@ struct DocumentationView: View {
                     docText("**Tap or swipe** to switch between the preview and the histogram.")
                 }
 
+                docSection("Hidden Games") {
+                    docText("Yes, there are two games hidden in a light meter app. No, we don't know why either. Somewhere between calibrating shutter speeds and arguing about reciprocity failure, we thought: **what if you could also play Arkanoid?** And then, because one inexplicable game wasn't enough: **a runner game too.**")
+                    docText("**Swipe** past the histogram and camera preview to find them. They live in the same tiny pixel grid because apparently **36x24 pixels** is all you need for entertainment.")
+                    docBullet("Zrnoid", "Tilt your phone to move the paddle. Tap to launch. Try not to drop the ball — your film camera is watching and judging you.")
+                    docBullet("Zrnorun", "Tap to jump. That's it. A photographer runs endlessly over obstacles, much like your quest for the perfect exposure.")
+                    docText("High scores are saved. Bragging rights are yours to claim. **No film was harmed** in the making of these games.")
+                }
+
                 docSection("iPhone Camera Selection") {
                     docText("If your iPhone has **multiple rear cameras**, you can switch between them. The app **automatically selects** the closest focal length when you switch lenses in a profile.")
                 }

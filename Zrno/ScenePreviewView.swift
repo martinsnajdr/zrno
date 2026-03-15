@@ -77,6 +77,10 @@ struct ScenePreviewView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(maxHeight: .infinity)
+        .onAppear {
+            if previewMode == .game { arkanoid.start() }
+            if previewMode == .runner { runner.start() }
+        }
         .onChange(of: previewMode) { oldMode, newMode in
             if oldMode == .game { arkanoid.stop() }
             if oldMode == .runner { runner.stop() }
