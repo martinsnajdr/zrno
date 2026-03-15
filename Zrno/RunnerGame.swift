@@ -27,8 +27,8 @@ final class RunnerGame {
     private(set) var runnerY: Double
     private var velocityY: Double = 0
     private var isOnGround: Bool { runnerY >= Double(groundY) }
-    private let gravity: Double = 0.25
-    private let jumpForce: Double = -2.2
+    private let gravity: Double = 0.14
+    private let jumpForce: Double = -1.8
 
     // Animation
     private var frameTick = 0
@@ -105,7 +105,7 @@ final class RunnerGame {
             waitingToStart = false
         } else if isOnGround && jumpCooldown == 0 {
             velocityY = jumpForce
-            jumpCooldown = 20
+            jumpCooldown = 5
         }
     }
 
@@ -131,7 +131,7 @@ final class RunnerGame {
             let delta = accelZ - lastAccelZ
             if delta > 0.3 && isOnGround && jumpCooldown == 0 && !waitingToStart {
                 velocityY = jumpForce
-                jumpCooldown = 20
+                jumpCooldown = 5
             }
             lastAccelZ = accelZ
         }
@@ -139,8 +139,8 @@ final class RunnerGame {
         // Nothing moves until game starts
         if waitingToStart { return }
 
-        // Physics
-        if !isOnGround {
+        // Physics — also enter when velocity is negative (jumping up from ground)
+        if !isOnGround || velocityY < 0 {
             velocityY += gravity
             runnerY += velocityY
             if runnerY >= Double(groundY) {
