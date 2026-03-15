@@ -5,8 +5,15 @@ struct ProfileListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
-    @Query(sort: \CameraProfile.createdAt) private var profiles: [CameraProfile]
+    @Query private var profiles: [CameraProfile]
     @State private var showEditor = false
+
+    /// Custom profiles sorted by name, with the default "Basic" profile always last.
+    private var sortedProfiles: [CameraProfile] {
+        let custom = profiles.filter { !$0.isDefault }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        let defaults = profiles.filter { $0.isDefault }
+        return custom + defaults
+    }
     @State private var editingProfile: CameraProfile?
 
     var body: some View {
@@ -14,8 +21,8 @@ struct ProfileListView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     sheetSection("Cameras") {
-                        ForEach(Array(profiles.enumerated()), id: \.element.persistentModelID) { index, profile in
-                            sheetRow(isLast: index == profiles.count - 1) {
+                        ForEach(Array(sortedProfiles.enumerated()), id: \.element.persistentModelID) { index, profile in
+                            sheetRow(isLast: index == sortedProfiles.count - 1) {
                                 HStack(spacing: 12) {
                                     // Checkmark circle
                                     Button {

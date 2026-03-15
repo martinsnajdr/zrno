@@ -78,8 +78,6 @@ struct MeterView: View {
             bottomBar
                 .padding(.bottom, 30)
         }
-        .animation(.spring(duration: 0.4), value: aperture)
-        .animation(.spring(duration: 0.4), value: shutterSpeed)
     }
 
     // MARK: - Landscape Layout
@@ -116,8 +114,6 @@ struct MeterView: View {
             .frame(maxWidth: .infinity)
         }
         .padding(.top, 56)
-        .animation(.spring(duration: 0.4), value: aperture)
-        .animation(.spring(duration: 0.4), value: shutterSpeed)
     }
 
     // MARK: - Shared Components
@@ -192,6 +188,8 @@ struct MeterView: View {
             evDisplay
                 .accessibilityIdentifier("evLabel")
         }
+        .animation(.spring(duration: 0.4), value: aperture)
+        .animation(.spring(duration: 0.4), value: shutterSpeed)
     }
 
     @ViewBuilder
