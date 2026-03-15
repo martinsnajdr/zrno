@@ -19,7 +19,7 @@ final class ArkanoidGame {
     private(set) var ballY: Double = 19
     private var ballDX: Double = 0.0
     private var ballDY: Double = 0.0
-    private let ballSpeed: Double = 0.38
+    private let ballSpeed: Double = 0.30
 
     // Bricks: rows 0–4, each brick is 2px wide × 1px tall, edge to edge
     private(set) var bricks: Set<BrickPos> = []
@@ -45,6 +45,13 @@ final class ArkanoidGame {
     // Smoothed ball position for rendering (reduces jitter)
     private var displayBallX: Double = 18
     private var displayBallY: Double = 19
+
+    // Ball trail — stores recent positions for ghost/trace effect
+    private var ballTrail: [(x: Double, y: Double)] = []
+    private let trailLength = 4
+
+    // Smoothed paddle tilt (reduces accelerometer noise)
+    private var smoothedTilt: Double = 0
 
     struct BrickPos: Hashable {
         let col: Int
@@ -79,6 +86,7 @@ final class ArkanoidGame {
         score = 0
         resetBricks()
         paddleX = Double(width) / 2.0
+        smoothedTilt = 0
         resetBall()
         startAccelerometer()
         gameTimer?.invalidate()
@@ -101,6 +109,7 @@ final class ArkanoidGame {
         ballY = Double(paddleRow) - 2.0
         displayBallX = ballX
         displayBallY = ballY
+        ballTrail.removeAll()
         let angle = Double.random(in: 0.5...1.1)
         let dir: Double = Bool.random() ? 1.0 : -1.0
         ballDX = dir * cos(angle) * ballSpeed
@@ -120,10 +129,11 @@ final class ArkanoidGame {
     private func tick() {
         guard isRunning, !gameOver, !won else { return }
 
-        // Read accelerometer for paddle
+        // Read accelerometer for paddle (smoothed to reduce jitter)
         if let data = motionManager.accelerometerData {
-            let tilt = data.acceleration.x
-            paddleX += tilt * 3.0
+            let rawTilt = data.acceleration.x
+            smoothedTilt += (rawTilt - smoothedTilt) * 0.3
+            paddleX += smoothedTilt * 2.2
             paddleX = max(paddleW / 2.0, min(Double(width) - paddleW / 2.0, paddleX))
         }
 
@@ -215,10 +225,16 @@ final class ArkanoidGame {
             ballY = newY
         }
 
-        // Smooth display position
-        let smoothing = 0.5
+        // Smooth display position — high factor tracks closely, filters sub-pixel noise
+        let smoothing = 0.8
         displayBallX = displayBallX + (ballX - displayBallX) * smoothing
         displayBallY = displayBallY + (ballY - displayBallY) * smoothing
+
+        // Record trail
+        ballTrail.append((x: displayBallX, y: displayBallY))
+        if ballTrail.count > trailLength {
+            ballTrail.removeFirst(ballTrail.count - trailLength)
+        }
     }
 
     /// Called by tap to launch ball or restart
@@ -252,6 +268,16 @@ final class ArkanoidGame {
             pixels[offset] = r; pixels[offset+1] = g; pixels[offset+2] = b; pixels[offset+3] = 255
         }
 
+        // Trail-safe: only writes over background pixels, never over content
+        func setPixelIfBg(_ col: Int, _ row: Int, r: UInt8, g: UInt8, b: UInt8) {
+            guard col >= 0, col < width, row >= 0, row < height else { return }
+            let offset = (row * width + col) * 4
+            // Only draw if the pixel is still the background color
+            if pixels[offset] == bgR && pixels[offset+1] == bgG && pixels[offset+2] == bgB {
+                pixels[offset] = r; pixels[offset+1] = g; pixels[offset+2] = b
+            }
+        }
+
         let dimR = UInt8(clamping: Int(Double(bgR) * 0.5 + Double(fgR) * 0.5))
         let dimG = UInt8(clamping: Int(Double(bgG) * 0.5 + Double(fgG) * 0.5))
         let dimB = UInt8(clamping: Int(Double(bgB) * 0.5 + Double(fgB) * 0.5))
@@ -272,8 +298,34 @@ final class ArkanoidGame {
             setPixel(col, paddleRow, r: fgR, g: fgG, b: fgB)
         }
 
-        // Draw ball
-        setPixel(Int(round(displayBallX)), Int(round(displayBallY)), r: fgR, g: fgG, b: fgB)
+        // Draw soft trail — each past position plus cross neighbours, only over background
+        let ballCol = Int(round(displayBallX))
+        let ballRow = Int(round(displayBallY))
+        for (i, pos) in ballTrail.enumerated() {
+            let age = Double(ballTrail.count - i)
+            let centerFade = max(0.03, 0.12 - age * 0.025)
+            let neighbourFade = centerFade * 0.45
+            let tc = Int(round(pos.x))
+            let tr = Int(round(pos.y))
+            if tc != ballCol || tr != ballRow {
+                let cr = UInt8(clamping: Int(Double(bgR) * (1 - centerFade) + Double(fgR) * centerFade))
+                let cg = UInt8(clamping: Int(Double(bgG) * (1 - centerFade) + Double(fgG) * centerFade))
+                let cb = UInt8(clamping: Int(Double(bgB) * (1 - centerFade) + Double(fgB) * centerFade))
+                setPixelIfBg(tc, tr, r: cr, g: cg, b: cb)
+            }
+            let nr = UInt8(clamping: Int(Double(bgR) * (1 - neighbourFade) + Double(fgR) * neighbourFade))
+            let ng = UInt8(clamping: Int(Double(bgG) * (1 - neighbourFade) + Double(fgG) * neighbourFade))
+            let nb = UInt8(clamping: Int(Double(bgB) * (1 - neighbourFade) + Double(fgB) * neighbourFade))
+            for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+                let nx = tc + dx, ny = tr + dy
+                if nx != ballCol || ny != ballRow {
+                    setPixelIfBg(nx, ny, r: nr, g: ng, b: nb)
+                }
+            }
+        }
+
+        // Ball pixel (full brightness, on top)
+        setPixel(ballCol, ballRow, r: fgR, g: fgG, b: fgB)
 
         // Draw lives as tiny hearts (3x2 each) in top-right area, row 0–1
         //  row0: X.X
