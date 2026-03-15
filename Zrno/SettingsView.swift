@@ -100,17 +100,37 @@ struct SettingsView: View {
                     }
 
                     settingsSection("About") {
-                        settingsRow(isLast: true) {
-                            HStack {
-                                Text("Zrno")
-                                    .font(.system(size: 15, weight: .medium, design: .monospaced))
+                        settingsRow(isLast: false) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("ZRNO")
+                                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
                                     .foregroundStyle(theme.primaryColor)
-                                Spacer()
+                                    .tracking(4)
                                 Text("Your best friend when nobody wants to go out with you to take amazing photos")
                                     .font(.system(size: 13, weight: .regular, design: .monospaced))
-                                    .foregroundStyle(theme.secondaryColor)
-                                    .multilineTextAlignment(.trailing)
+                                    .foregroundStyle(theme.primaryColor.opacity(0.85))
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        settingsRow(isLast: false) {
+                            highScoresRow
+                        }
+                        settingsRow(isLast: true) {
+                            NavigationLink {
+                                DocumentationView()
+                            } label: {
+                                HStack {
+                                    Text("Guide")
+                                        .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                        .foregroundStyle(theme.primaryColor)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(theme.secondaryColor)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -161,6 +181,35 @@ struct SettingsView: View {
         .tint(theme.primaryColor)
         .presentationCornerRadius(16)
         .presentationBackground(theme.backgroundColor)
+    }
+
+    private var highScoresRow: some View {
+        let zrnoidHigh = UserDefaults.standard.integer(forKey: ArkanoidGame.highScoreKey)
+        let zrnorunHigh = UserDefaults.standard.integer(forKey: RunnerGame.highScoreKey)
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("High Scores")
+                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                .foregroundStyle(theme.primaryColor)
+            HStack(spacing: 4) {
+                Text("Zrnoid")
+                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .foregroundStyle(theme.secondaryColor)
+                Spacer()
+                Text("\(zrnoidHigh)")
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(theme.primaryColor)
+            }
+            HStack(spacing: 4) {
+                Text("Zrnorun")
+                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .foregroundStyle(theme.secondaryColor)
+                Spacer()
+                Text("\(zrnorunHigh)")
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(theme.primaryColor)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func settingsSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {

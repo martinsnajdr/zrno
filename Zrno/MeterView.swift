@@ -8,7 +8,6 @@ struct MeterView: View {
     let aperture: Double
     let shutterSpeed: Double
     let iso: Int
-    let measuredEV: Double
     let meterReliability: MeterReliability
     let exposureStatus: ExposureStatus
     let profileName: String
@@ -206,19 +205,15 @@ struct MeterView: View {
                 .font(.system(size: 13, weight: .regular, design: .monospaced))
                 .foregroundStyle(theme.primaryColor)
         } else if exposureStatus == .underExposed {
-            Text(meterMode == .auto ? "UNDEREXPOSED – EV \(ExposureCalculator.formatEV(measuredEV))" : "UNDEREXPOSED")
+            Text("UNDEREXPOSED")
                 .font(.system(size: 13, weight: .regular, design: .monospaced))
                 .foregroundStyle(theme.primaryColor)
         } else if exposureStatus == .overExposed {
-            Text(meterMode == .auto ? "OVEREXPOSED – EV \(ExposureCalculator.formatEV(measuredEV))" : "OVEREXPOSED")
+            Text("OVEREXPOSED")
                 .font(.system(size: 13, weight: .regular, design: .monospaced))
                 .foregroundStyle(theme.primaryColor)
-        } else if meterMode != .auto {
-            Text("CORRECT EXPOSURE")
-                .font(.system(size: 13, weight: .regular, design: .monospaced))
-                .foregroundStyle(theme.secondaryColor)
         } else {
-            Text("EV \(ExposureCalculator.formatEV(measuredEV))")
+            Text("CORRECT EXPOSURE")
                 .font(.system(size: 13, weight: .regular, design: .monospaced))
                 .foregroundStyle(theme.secondaryColor)
         }
@@ -329,7 +324,7 @@ struct MeterView: View {
             aperture: 5.6,
             shutterSpeed: 1.0 / 125,
             iso: 400,
-            measuredEV: 12.3,
+
             meterReliability: .normal,
             exposureStatus: .correct,
             profileName: "Mamiya 7",

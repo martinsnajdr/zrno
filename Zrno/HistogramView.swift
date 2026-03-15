@@ -5,21 +5,21 @@ struct HistogramView: View {
 
     let bins: [Float]
 
-    // Pixel grid: 64 columns × 20 rows
-    private let gridW = 64
-    private let gridH = 20
+    // Pixel grid: matches preview resolution (36x24, 3:2 aspect)
+    private let gridW = 36
+    private let gridH = 24
 
     var body: some View {
         if let img = histogramImage() {
             Image(decorative: img, scale: 1.0)
                 .interpolation(.none)
                 .resizable()
-                .clipped()
+                .aspectRatio(CGFloat(gridW) / CGFloat(gridH), contentMode: .fit)
         }
     }
 
     private func histogramImage() -> CGImage? {
-        // Downsample 256 bins → 64 columns by averaging groups of 4
+        // Downsample 256 bins → 36 columns by averaging groups
         let binGroupSize = bins.count / gridW
         var downsampled = [Float](repeating: 0, count: gridW)
         for col in 0..<gridW {
@@ -36,10 +36,8 @@ struct HistogramView: View {
         for i in 0..<gridW { downsampled[i] /= peak }
 
         // Resolve colors
-        let bgColor = theme.effectiveIsDark ? theme.primaryColor : theme.backgroundColor
-        let fgColor = theme.effectiveIsDark ? theme.backgroundColor : theme.primaryColor
-        let bgRGB = UIColor(bgColor).rgbComponents
-        let fgRGB = UIColor(fgColor).rgbComponents
+        let bgRGB = UIColor(theme.backgroundColor).rgbComponents
+        let fgRGB = UIColor(theme.primaryColor).rgbComponents
 
         // Build pixel buffer
         var pixels = [UInt8](repeating: 0, count: gridW * gridH * 4)

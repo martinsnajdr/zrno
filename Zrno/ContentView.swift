@@ -15,7 +15,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var isEditingLayout = false
     @State private var layoutOffsets = LayoutOffsets.load()
-    @State private var previewMode: PreviewMode = .histogram
+    @AppStorage("zrno.previewMode") private var previewMode: PreviewMode = .histogram
 
     private var activeProfile: CameraProfile? { selectedProfiles.first }
 
@@ -25,17 +25,7 @@ struct ContentView: View {
                 // Solid theme background
                 theme.backgroundColor.ignoresSafeArea()
 
-                if lightMeter.isRunning || !lightMeter.permissionGranted {
-                    meterContent
-                } else {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .tint(theme.secondaryColor)
-                        Text("Starting meter...")
-                            .font(.system(size: 15, weight: .medium, design: theme.design))
-                            .foregroundStyle(theme.secondaryColor)
-                    }
-                }
+                meterContent
 
                 // Top bar: profiles | ZRNO | settings
                 VStack {
@@ -184,7 +174,6 @@ struct ContentView: View {
                     aperture: lightMeter.recommendedAperture,
                     shutterSpeed: lightMeter.recommendedShutterSpeed,
                     iso: activeProfile?.filmISO ?? 400,
-                    measuredEV: lightMeter.measuredEV,
                     meterReliability: lightMeter.meterReliability,
                     exposureStatus: lightMeter.exposureStatus,
                     profileName: activeProfile?.name ?? "",

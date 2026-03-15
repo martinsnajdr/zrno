@@ -507,9 +507,9 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
             .oriented(.right)
 
-        // Crop to 4:3 landscape, downscale to 20x15 for a pixelated preview
+        // Crop to 3:2 landscape, downscale to 36x24 for a pixelated preview
         let extent = ciImage.extent
-        let targetAspect: CGFloat = 4.0 / 3.0
+        let targetAspect: CGFloat = 3.0 / 2.0
         let cropW: CGFloat
         let cropH: CGFloat
         if extent.width / extent.height > targetAspect {
@@ -531,8 +531,8 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
                 y: -cropRect.origin.y
             ))
 
-        let targetW: CGFloat = 20
-        let targetH: CGFloat = 15
+        let targetW: CGFloat = 36
+        let targetH: CGFloat = 24
         let scaleX = targetW / cropW
         let scaleY = targetH / cropH
         let scaled = cropped
