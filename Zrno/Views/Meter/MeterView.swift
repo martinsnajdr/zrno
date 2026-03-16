@@ -156,6 +156,7 @@ struct MeterView: View {
                     }
                 }
                 .animation(.easeInOut(duration: 0.25), value: isApertureLocked)
+                .id("aperture-\(theme.fontDesign.rawValue)")
                 .accessibilityIdentifier("apertureLabel")
 
                 // Classic: shutter speed — tap to lock/unlock, neighbors fade in when locked
@@ -179,6 +180,7 @@ struct MeterView: View {
                     }
                 }
                 .animation(.easeInOut(duration: 0.25), value: isShutterLocked)
+                .id("shutter-\(theme.fontDesign.rawValue)")
                 .accessibilityIdentifier("shutterSpeedLabel")
             }
 
