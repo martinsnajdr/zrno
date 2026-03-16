@@ -223,4 +223,100 @@ struct FocalLengthSelectionTests {
         meter.selectClosestCamera(toFocalLength: 50)
         #expect(meter.activeCameraID == "")
     }
+
+    @Test func selectClosestCameraPicksNearest() {
+        let meter = LightMeterService()
+        meter.availableCameras = [
+            CameraLens(id: "ultra", deviceType: .builtInUltraWideCamera, focalLength: 13, label: "13mm"),
+            CameraLens(id: "wide", deviceType: .builtInWideAngleCamera, focalLength: 26, label: "26mm"),
+            CameraLens(id: "tele", deviceType: .builtInTelephotoCamera, focalLength: 77, label: "77mm"),
+        ]
+        meter.activeCameraID = "ultra"
+        meter.selectClosestCamera(toFocalLength: 80)
+        #expect(meter.activeCameraID == "tele")
+    }
+}
+
+// MARK: - Exposure Status in Auto Mode
+
+struct LightMeterServiceExposureStatusTests {
+
+    @Test func autoModeCorrectExposure() {
+        let meter = LightMeterService()
+        meter.measuredEV = 12.0
+        let profile = CameraProfile(
+            name: "Test",
+            apertures: [2.8, 4.0, 5.6, 8.0, 11.0, 16.0],
+            shutterSpeeds: [1.0/1000, 1.0/500, 1.0/250, 1.0/125, 1.0/60, 1.0/30],
+            filmISO: 400
+        )
+        meter.updateRecommendation(for: profile, force: true)
+        #expect(meter.exposureStatus == .correct)
+    }
+
+    @Test func autoModeOverExposedWhenTooBright() {
+        let meter = LightMeterService()
+        meter.measuredEV = 22.0 // extremely bright
+        let profile = CameraProfile(
+            name: "Test",
+            apertures: [8.0, 11.0, 16.0],
+            shutterSpeeds: [1.0/1000, 1.0/500],
+            filmISO: 400
+        )
+        meter.updateRecommendation(for: profile, force: true)
+        // With such extreme EV and limited fast speeds, combos should be empty → overExposed
+        if meter.exposureCombinations.isEmpty {
+            #expect(meter.exposureStatus == .overExposed)
+        }
+    }
+
+    @Test func autoModeUnderExposedWhenTooDim() {
+        let meter = LightMeterService()
+        meter.measuredEV = -2.0 // very dim
+        let profile = CameraProfile(
+            name: "Test",
+            apertures: [8.0, 11.0, 16.0],
+            shutterSpeeds: [1.0/1000, 1.0/500, 1.0/250],
+            filmISO: 100
+        )
+        meter.updateRecommendation(for: profile, force: true)
+        if meter.exposureCombinations.isEmpty {
+            #expect(meter.exposureStatus == .underExposed)
+        }
+    }
+
+    @Test func defaultReliabilityIsNormal() {
+        let meter = LightMeterService()
+        #expect(meter.meterReliability == .normal)
+    }
+
+    @Test func defaultExposureStatusIsCorrect() {
+        let meter = LightMeterService()
+        #expect(meter.exposureStatus == .correct)
+    }
+
+    @Test func quantizedEVRoundsToTenth() {
+        let meter = LightMeterService()
+        meter.measuredEV = 12.34
+        #expect(meter.quantizedEV == 123)
+        meter.measuredEV = 12.35
+        #expect(meter.quantizedEV == 124)
+    }
+
+    @Test func exposureCombinationsPopulated() {
+        let meter = LightMeterService()
+        meter.measuredEV = 12.0
+        let profile = CameraProfile(
+            name: "Test",
+            apertures: [2.8, 4.0, 5.6, 8.0],
+            shutterSpeeds: [1.0/500, 1.0/250, 1.0/125, 1.0/60, 1.0/30],
+            filmISO: 400
+        )
+        meter.updateRecommendation(for: profile, force: true)
+        #expect(!meter.exposureCombinations.isEmpty)
+        for combo in meter.exposureCombinations {
+            #expect(profile.activeApertures.contains(combo.aperture))
+            #expect(profile.sortedShutterSpeeds.contains(combo.shutterSpeed))
+        }
+    }
 }

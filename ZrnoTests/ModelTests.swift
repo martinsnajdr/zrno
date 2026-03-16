@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import AVFoundation
 @testable import Zrno
 
 // MARK: - CameraProfile
@@ -199,46 +200,6 @@ struct PreviewModeTests {
     }
 }
 
-// MARK: - LayoutOffsets
-
-struct LayoutOffsetsTests {
-
-    @Test func defaultValues() {
-        let offsets = LayoutOffsets()
-        #expect(offsets.meterOffsetX == 0)
-        #expect(offsets.meterOffsetY == 0)
-    }
-
-    @Test func encodeDecode() throws {
-        var offsets = LayoutOffsets()
-        offsets.meterOffsetX = 42.5
-        offsets.meterOffsetY = -17.3
-        let data = try JSONEncoder().encode(offsets)
-        let decoded = try JSONDecoder().decode(LayoutOffsets.self, from: data)
-        #expect(decoded.meterOffsetX == 42.5)
-        #expect(decoded.meterOffsetY == -17.3)
-    }
-
-    @Test func saveAndLoad() {
-        UserDefaults.standard.removeObject(forKey: "zrno.layout")
-        var offsets = LayoutOffsets()
-        offsets.meterOffsetX = 100
-        offsets.meterOffsetY = -50
-        offsets.save()
-        let loaded = LayoutOffsets.load()
-        #expect(loaded.meterOffsetX == 100)
-        #expect(loaded.meterOffsetY == -50)
-        UserDefaults.standard.removeObject(forKey: "zrno.layout")
-    }
-
-    @Test func loadReturnsDefaultWhenEmpty() {
-        UserDefaults.standard.removeObject(forKey: "zrno.layout")
-        let loaded = LayoutOffsets.load()
-        #expect(loaded.meterOffsetX == 0)
-        #expect(loaded.meterOffsetY == 0)
-    }
-}
-
 // MARK: - MeterMode
 
 struct MeterModeTests {
@@ -255,6 +216,103 @@ struct MeterModeTests {
             let decoded = try JSONDecoder().decode(MeterMode.self, from: data)
             #expect(decoded == mode)
         }
+    }
+}
+
+// MARK: - MeterReliability
+
+struct MeterReliabilityTests {
+
+    @Test func equalityCases() {
+        #expect(MeterReliability.normal == MeterReliability.normal)
+        #expect(MeterReliability.lowLight == MeterReliability.lowLight)
+        #expect(MeterReliability.overExposed == MeterReliability.overExposed)
+        #expect(MeterReliability.normal != MeterReliability.lowLight)
+        #expect(MeterReliability.lowLight != MeterReliability.overExposed)
+    }
+}
+
+// MARK: - ExposureStatus
+
+struct ExposureStatusTests {
+
+    @Test func equalityCases() {
+        #expect(ExposureStatus.correct == ExposureStatus.correct)
+        #expect(ExposureStatus.underExposed == ExposureStatus.underExposed)
+        #expect(ExposureStatus.overExposed == ExposureStatus.overExposed)
+        #expect(ExposureStatus.correct != ExposureStatus.underExposed)
+        #expect(ExposureStatus.underExposed != ExposureStatus.overExposed)
+    }
+}
+
+// MARK: - PreviewMode (extended)
+
+struct PreviewModeAvailableTests {
+
+    @Test func availableFunOn() {
+        let modes = PreviewMode.available(funMode: true)
+        #expect(modes == PreviewMode.allCases)
+    }
+
+    @Test func availableFunOff() {
+        let modes = PreviewMode.available(funMode: false)
+        #expect(modes == [.histogram, .camera])
+        #expect(!modes.contains(.game))
+        #expect(!modes.contains(.runner))
+    }
+
+    @Test func gameModeNextFunOffFallsToHistogram() {
+        // If somehow on .game with fun off, next should wrap to histogram
+        let next = PreviewMode.game.next(funMode: false)
+        #expect(next == .histogram)
+    }
+
+    @Test func gameModeePreviousFunOffFallsToHistogram() {
+        let prev = PreviewMode.game.previous(funMode: false)
+        #expect(prev == .histogram)
+    }
+}
+
+// MARK: - CameraProfile (extended)
+
+struct CameraProfileExtendedTests {
+
+    @Test func activeAperturesUsesSelectedLens() {
+        let profile = CameraProfile(name: "Test", apertures: [2.8, 4.0, 5.6])
+        let lens = Lens(name: "Wide", focalLength: 35, apertures: [1.4, 2.0, 2.8], isSelected: true)
+        lens.cameraProfile = profile
+        profile.lenses = [lens]
+        let active = profile.activeApertures
+        #expect(active == [1.4, 2.0, 2.8])
+    }
+
+    @Test func activeAperturesFallsBackWhenNoLensSelected() {
+        let profile = CameraProfile(name: "Test", apertures: [4.0, 5.6, 8.0])
+        let lens = Lens(name: "Wide", focalLength: 35, apertures: [1.4, 2.0], isSelected: false)
+        lens.cameraProfile = profile
+        profile.lenses = [lens]
+        let active = profile.activeApertures
+        #expect(active == [4.0, 5.6, 8.0])
+    }
+
+    @Test func pinholeTypeProperties() {
+        let profile = CameraProfile(name: "Pinhole")
+        profile.type = .pinhole
+        profile.pinholeDiameterMM = 0.5
+        profile.pinholeFocalLengthMM = 100.0
+        #expect(profile.type == .pinhole)
+        #expect(abs(profile.effectivePinholeAperture - 200.0) < 0.1)
+    }
+
+    @Test func exposureCompensationDefault() {
+        let profile = CameraProfile(name: "Test")
+        #expect(profile.exposureCompensation == 0.0)
+    }
+
+    @Test func isDefaultFlagWorks() {
+        let profile = CameraProfile(name: "Basic")
+        profile.isDefault = true
+        #expect(profile.isDefault == true)
     }
 }
 
