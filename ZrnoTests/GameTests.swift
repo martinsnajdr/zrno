@@ -208,7 +208,8 @@ struct ArkanoidGameTests {
         let game = ArkanoidGame()
         game.start()
         let pixels = game.render(fgR: 255, fgG: 255, fgB: 255, bgR: 0, bgG: 0, bgB: 0)
-        #expect(pixels.count == 36 * 24 * 4)
+        // Rendered at 4x: 144×96
+        #expect(pixels.count == game.renderWidth * game.renderHeight * 4)
         game.stop()
     }
 
@@ -217,17 +218,19 @@ struct ArkanoidGameTests {
         let game = ArkanoidGame()
         game.start()
         let pixels = game.render(fgR: 255, fgG: 255, fgB: 255, bgR: 0, bgG: 0, bgB: 0)
-        // Bricks are in rows 0-4, they should produce non-background pixels
+        let s = game.scale
+        let rw = game.renderWidth
+        // Bricks are in rows 0-4 (scaled), they should produce non-background pixels
         var brickAreaNonBgCount = 0
-        for row in 0...4 {
-            for col in 0..<36 {
-                let offset = (row * 36 + col) * 4
+        for row in 0..<(5 * s) {
+            for col in 0..<rw {
+                let offset = (row * rw + col) * 4
                 if pixels[offset] != 0 || pixels[offset + 1] != 0 || pixels[offset + 2] != 0 {
                     brickAreaNonBgCount += 1
                 }
             }
         }
-        #expect(brickAreaNonBgCount > 100) // Most of 180 brick pixels should be visible
+        #expect(brickAreaNonBgCount > 100)
         game.stop()
     }
 
@@ -236,16 +239,21 @@ struct ArkanoidGameTests {
         let game = ArkanoidGame()
         game.start()
         let pixels = game.render(fgR: 255, fgG: 255, fgB: 255, bgR: 0, bgG: 0, bgB: 0)
-        // Paddle is at row 23 (last row), 5px wide, centered
-        let paddleRow = 23
+        let s = game.scale
+        let rw = game.renderWidth
+        // Paddle at row 23, rendered at scale
+        let paddleRowStart = 23 * s
         var paddleFgCount = 0
-        for col in 0..<36 {
-            let offset = (paddleRow * 36 + col) * 4
-            if pixels[offset] == 255 && pixels[offset + 1] == 255 && pixels[offset + 2] == 255 {
-                paddleFgCount += 1
+        for dy in 0..<s {
+            for col in 0..<rw {
+                let offset = ((paddleRowStart + dy) * rw + col) * 4
+                if pixels[offset] == 255 && pixels[offset + 1] == 255 && pixels[offset + 2] == 255 {
+                    paddleFgCount += 1
+                }
             }
         }
-        #expect(paddleFgCount == 5) // 5px wide paddle
+        // 5 game-pixels wide × scale tall × scale wide = 5 * scale * scale
+        #expect(paddleFgCount == 5 * s * s)
         game.stop()
     }
 
@@ -254,12 +262,13 @@ struct ArkanoidGameTests {
         let game = ArkanoidGame()
         game.start()
         let pixels = game.render(fgR: 255, fgG: 255, fgB: 255, bgR: 0, bgG: 0, bgB: 0)
-        // Ball should be at approximately row 21 (paddleRow - 2), col 18 (center)
-        // Check that at least one full-brightness pixel exists in the ball area
+        let s = game.scale
+        let rw = game.renderWidth
+        // Ball should be near row 21, col 17-18 in game coords → scaled
         var foundBall = false
-        for row in 19...22 {
-            for col in 15...21 {
-                let offset = (row * 36 + col) * 4
+        for row in (19 * s)...(22 * s) {
+            for col in (15 * s)...(21 * s) {
+                let offset = (row * rw + col) * 4
                 if pixels[offset] == 255 && pixels[offset + 1] == 255 && pixels[offset + 2] == 255 {
                     foundBall = true
                 }
@@ -315,7 +324,8 @@ struct ArkanoidGameTests {
     @Test func ballStartsCentered() {
         let game = ArkanoidGame()
         game.start()
-        #expect(game.ballX == 18.0)
+        // Ball is centered: width/2 - 0.5 = 17.5, but in waitingToStart it tracks paddle
+        #expect(game.ballX == 17.5) // paddleX(18) - 0.5
         #expect(game.ballY == 21.0) // paddleRow(23) - 2
         game.stop()
     }

@@ -1,5 +1,6 @@
 import Foundation
 import CoreMotion
+import UIKit
 
 /// Zrnorun – Endless runner at 36x24 pixel resolution.
 /// A photographer character runs and jumps over obstacles.
@@ -56,10 +57,20 @@ final class RunnerGame {
         set { UserDefaults.standard.set(newValue, forKey: Self.highScoreKey) }
     }
 
+    // Haptics
+    private let jumpHaptic = UIImpactFeedbackGenerator(style: .light)
+    private let crashHaptic = UINotificationFeedbackGenerator()
+    private let scoreHaptic = UIImpactFeedbackGenerator(style: .soft)
+    private let milestoneHaptic = UIImpactFeedbackGenerator(style: .rigid)
+
+    // Timing
     private var gameTimer: Timer?
     private let motionManager = CMMotionManager()
     private var lastAccelZ: Double = 0
     private var jumpCooldown = 0
+    private var restartCooldown = 0  // subticks until restart is allowed
+
+
 
     init() {
         runnerY = Double(groundY)
@@ -78,8 +89,13 @@ final class RunnerGame {
         nextObstacleDistance = 25
         frameTick = 0
         jumpCooldown = 0
+        restartCooldown = 0
         groundOffset = 0
         startAccelerometer()
+        jumpHaptic.prepare()
+        crashHaptic.prepare()
+        scoreHaptic.prepare()
+        milestoneHaptic.prepare()
         gameTimer?.invalidate()
         gameTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { _ in
             Task { @MainActor [weak self] in
@@ -100,13 +116,16 @@ final class RunnerGame {
     /// Tap to start, jump, or restart
     func handleTap() {
         if gameOver {
-            restart()
-            waitingToStart = false  // skip waiting, start running immediately
+            if restartCooldown <= 0 {
+                restart()
+                waitingToStart = false
+            }
         } else if waitingToStart {
             waitingToStart = false
         } else if isOnGround && jumpCooldown == 0 {
             velocityY = jumpForce
             jumpCooldown = 5
+            jumpHaptic.impactOccurred(intensity: 0.5)
         }
     }
 
@@ -121,6 +140,7 @@ final class RunnerGame {
     // MARK: - Game Loop
 
     private func tick() {
+        if restartCooldown > 0 { restartCooldown -= 1 }
         guard isRunning, !gameOver else { return }
 
         frameTick += 1
@@ -174,6 +194,10 @@ final class RunnerGame {
             if !obstacles[i].scored && Int(round(obstacles[i].x)) + 1 < runnerCol {
                 obstacles[i].scored = true
                 score += 1
+                scoreHaptic.impactOccurred(intensity: 0.3)
+                if score % 10 == 0 {
+                    milestoneHaptic.impactOccurred(intensity: 0.8)
+                }
             }
         }
 
@@ -194,7 +218,9 @@ final class RunnerGame {
             if right >= obsCol && left <= obsRight &&
                feetRow >= obsTop && topRow <= obsBottom {
                 gameOver = true
+                restartCooldown = 60  // ~1 second at 60fps
                 if score > highScore { highScore = score }
+                crashHaptic.notificationOccurred(.error)
                 return
             }
         }
@@ -260,20 +286,16 @@ final class RunnerGame {
         if isOnGround {
             switch legFrame {
             case 0:
-                // X...X (legs apart)
                 setPixel(c, feetRow, r: fgR, g: fgG, b: fgB)
                 setPixel(c + 3, feetRow, r: fgR, g: fgG, b: fgB)
             case 1:
-                // .X.X. (mid-stride)
                 setPixel(c + 1, feetRow, r: fgR, g: fgG, b: fgB)
                 setPixel(c + 3, feetRow, r: fgR, g: fgG, b: fgB)
             default:
-                // .XX.. (legs together)
                 setPixel(c + 1, feetRow, r: fgR, g: fgG, b: fgB)
                 setPixel(c + 2, feetRow, r: fgR, g: fgG, b: fgB)
             }
         } else {
-            // In air: legs tucked  .XX..
             setPixel(c + 1, feetRow, r: fgR, g: fgG, b: fgB)
             setPixel(c + 2, feetRow, r: fgR, g: fgG, b: fgB)
         }

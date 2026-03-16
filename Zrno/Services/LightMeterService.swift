@@ -46,6 +46,8 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
     // MARK: - Published Readings
 
     var measuredEV: Double = 0.0
+    /// EV rounded to 1/10 stop — use this for SwiftUI onChange to avoid per-frame spam.
+    var quantizedEV: Int { Int(round(measuredEV * 10)) }
     var cameraExposureDuration: Double = 0.0
     var cameraISO: Float = 0.0
     var cameraAperture: Float = 0.0
@@ -307,6 +309,7 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
                 exposureStatus = .correct
             }
         }
+
     }
 
     func toggleAperturePriority(currentAperture: Double) {

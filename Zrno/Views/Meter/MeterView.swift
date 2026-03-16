@@ -192,29 +192,30 @@ struct MeterView: View {
         .animation(.spring(duration: 0.4), value: shutterSpeed)
     }
 
-    @ViewBuilder
-    private var evDisplay: some View {
+    private var evDisplayText: String {
         if meterReliability == .lowLight {
-            Text("UNRELIABLE – LOW LIGHT")
-                .font(.system(size: 13, weight: .regular, design: .monospaced))
-                .foregroundStyle(theme.primaryColor)
+            return "UNRELIABLE – LOW LIGHT"
         } else if meterReliability == .overExposed {
-            Text("UNRELIABLE – BRIGHT LIGHT")
-                .font(.system(size: 13, weight: .regular, design: .monospaced))
-                .foregroundStyle(theme.primaryColor)
+            return "UNRELIABLE – BRIGHT LIGHT"
         } else if exposureStatus == .underExposed {
-            Text("UNDEREXPOSED")
-                .font(.system(size: 13, weight: .regular, design: .monospaced))
-                .foregroundStyle(theme.primaryColor)
+            return "UNDEREXPOSED"
         } else if exposureStatus == .overExposed {
-            Text("OVEREXPOSED")
-                .font(.system(size: 13, weight: .regular, design: .monospaced))
-                .foregroundStyle(theme.primaryColor)
+            return "OVEREXPOSED"
         } else {
-            Text("CORRECT EXPOSURE")
-                .font(.system(size: 13, weight: .regular, design: .monospaced))
-                .foregroundStyle(theme.secondaryColor)
+            return "CORRECT EXPOSURE"
         }
+    }
+
+    private var evDisplayIsWarning: Bool {
+        meterReliability != .normal || exposureStatus != .correct
+    }
+
+    private var evDisplay: some View {
+        Text(evDisplayText)
+            .font(.system(size: 13, weight: .regular, design: .monospaced))
+            .foregroundStyle(evDisplayIsWarning ? theme.primaryColor : theme.secondaryColor)
+            .contentTransition(.numericText())
+            .animation(.easeInOut(duration: 0.3), value: evDisplayText)
     }
 
     private var bottomBar: some View {

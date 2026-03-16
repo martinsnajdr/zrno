@@ -346,6 +346,152 @@ final class ZrnoUITests: XCTestCase {
                       "CAMERA topbar title should remain visible when keyboard is shown")
     }
 
+    // MARK: - Layout Stability
+
+    /// Verifies the top bar position stays consistent after portrait → landscape → portrait rotation.
+    @MainActor
+    func testTopBarPositionStableAfterRotation() throws {
+        let profileButton = app.buttons["profileButton"]
+        guard profileButton.waitForExistence(timeout: 5) else {
+            XCTFail("Profile button not found")
+            return
+        }
+
+        // Record top bar position in portrait
+        let portraitY = profileButton.frame.minY
+
+        // Take portrait screenshot
+        let portraitShot = XCUIScreen.main.screenshot()
+        let portraitAttachment = XCTAttachment(screenshot: portraitShot)
+        portraitAttachment.name = "Portrait - Before Rotation"
+        portraitAttachment.lifetime = .keepAlways
+        add(portraitAttachment)
+
+        // Rotate to landscape
+        XCUIDevice.shared.orientation = .landscapeLeft
+        Thread.sleep(forTimeInterval: 1.0)
+
+        // Take landscape screenshot
+        let landscapeShot = XCUIScreen.main.screenshot()
+        let landscapeAttachment = XCTAttachment(screenshot: landscapeShot)
+        landscapeAttachment.name = "Landscape"
+        landscapeAttachment.lifetime = .keepAlways
+        add(landscapeAttachment)
+
+        // Rotate back to portrait
+        XCUIDevice.shared.orientation = .portrait
+        Thread.sleep(forTimeInterval: 1.0)
+
+        // Take post-rotation portrait screenshot
+        let afterShot = XCUIScreen.main.screenshot()
+        let afterAttachment = XCTAttachment(screenshot: afterShot)
+        afterAttachment.name = "Portrait - After Rotation"
+        afterAttachment.lifetime = .keepAlways
+        add(afterAttachment)
+
+        // Verify top bar returned to the same position (within 2pt tolerance)
+        guard profileButton.waitForExistence(timeout: 3) else {
+            XCTFail("Profile button disappeared after rotation")
+            return
+        }
+        let afterY = profileButton.frame.minY
+        XCTAssertEqual(portraitY, afterY, accuracy: 2.0,
+                       "Top bar Y shifted by \(afterY - portraitY)pt after rotation cycle")
+    }
+
+    /// Verifies key UI elements are visible and within expected screen bounds in portrait.
+    @MainActor
+    func testPortraitLayoutIntegrity() throws {
+        let screenWidth = XCUIScreen.main.screenshot().image.size.width
+
+        // Top bar elements
+        let profileButton = app.buttons["profileButton"]
+        let settingsButton = app.buttons["settingsButton"]
+        let branding = app.staticTexts["ZRNO"]
+
+        guard profileButton.waitForExistence(timeout: 5) else {
+            XCTFail("Profile button not found")
+            return
+        }
+
+        XCTAssertTrue(settingsButton.exists, "Settings button should exist")
+        XCTAssertTrue(branding.exists, "ZRNO branding should exist")
+
+        // All top bar elements should be on screen
+        XCTAssertGreaterThanOrEqual(profileButton.frame.minX, 0,
+                                    "Profile button should be on screen")
+        XCTAssertLessThanOrEqual(settingsButton.frame.maxX, screenWidth,
+                                 "Settings button should be on screen")
+
+        // Profile button should be left of branding, branding left of settings
+        XCTAssertLessThan(profileButton.frame.midX, branding.frame.midX,
+                          "Profile button should be left of ZRNO")
+        XCTAssertLessThan(branding.frame.midX, settingsButton.frame.midX,
+                          "ZRNO should be left of settings button")
+
+        // Exposure elements
+        let shutterButton = app.buttons["shutterSpeedLabel"]
+        let apertureButton = app.buttons["apertureLabel"]
+        let evLabel = app.staticTexts["evLabel"]
+        let dial = app.otherElements["compensationDial"]
+        let preview = app.otherElements["scenePreview"]
+
+        XCTAssertTrue(shutterButton.waitForExistence(timeout: 3), "Shutter speed should exist")
+        XCTAssertTrue(apertureButton.exists, "Aperture should exist")
+        XCTAssertTrue(evLabel.exists, "EV label should exist")
+        XCTAssertTrue(dial.exists, "Compensation dial should exist")
+        XCTAssertTrue(preview.exists, "Scene preview should exist")
+
+        // Vertical ordering: top bar above aperture above shutter above dial above preview
+        XCTAssertLessThan(profileButton.frame.maxY, apertureButton.frame.minY,
+                          "Top bar should be above aperture")
+        XCTAssertLessThan(apertureButton.frame.maxY, shutterButton.frame.minY,
+                          "Aperture should be above shutter speed")
+        XCTAssertLessThan(shutterButton.frame.maxY, dial.frame.minY,
+                          "Shutter speed should be above compensation dial")
+        XCTAssertLessThan(dial.frame.maxY, preview.frame.minY,
+                          "Compensation dial should be above scene preview")
+
+        // Take reference screenshot
+        let shot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: shot)
+        attachment.name = "Portrait Layout Reference"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    /// Verifies key UI elements are visible in landscape orientation.
+    @MainActor
+    func testLandscapeLayoutIntegrity() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        Thread.sleep(forTimeInterval: 1.0)
+
+        let profileButton = app.buttons["profileButton"]
+        guard profileButton.waitForExistence(timeout: 5) else {
+            XCTFail("Profile button not found in landscape")
+            return
+        }
+
+        let settingsButton = app.buttons["settingsButton"]
+        let shutterButton = app.buttons["shutterSpeedLabel"]
+        let preview = app.otherElements["scenePreview"]
+
+        XCTAssertTrue(settingsButton.exists, "Settings button should exist in landscape")
+        XCTAssertTrue(shutterButton.exists, "Shutter speed should exist in landscape")
+        XCTAssertTrue(preview.exists, "Scene preview should exist in landscape")
+
+        // Take reference screenshot
+        let shot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: shot)
+        attachment.name = "Landscape Layout Reference"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        // Restore portrait
+        XCUIDevice.shared.orientation = .portrait
+        Thread.sleep(forTimeInterval: 0.5)
+    }
+
     // MARK: - Launch Performance
 
     @MainActor

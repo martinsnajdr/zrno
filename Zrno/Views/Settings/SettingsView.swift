@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
+    @AppStorage("zrno.funMode") private var funMode = false
 
     var body: some View {
         NavigationStack {
@@ -138,9 +139,6 @@ struct SettingsView: View {
                             .buttonStyle(.plain)
                         }
                         settingsRow(isLast: false) {
-                            highScoresRow
-                        }
-                        settingsRow(isLast: true) {
                             NavigationLink {
                                 DocumentationView()
                             } label: {
@@ -156,6 +154,22 @@ struct SettingsView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                        }
+                        settingsRow(isLast: !funMode) {
+                            HStack {
+                                Text("Fun Mode")
+                                    .font(.system(size: 15, weight: .regular, design: .monospaced))
+                                    .foregroundStyle(theme.primaryColor)
+                                Spacer()
+                                Toggle("", isOn: $funMode)
+                                    .labelsHidden()
+                                    .toggleStyle(ThemeToggleStyle(theme: theme))
+                            }
+                        }
+                        if funMode {
+                            settingsRow(isLast: true) {
+                                highScoresRow
+                            }
                         }
                     }
                 }
@@ -266,6 +280,31 @@ struct SettingsView: View {
                     .frame(height: 0.5)
                     .padding(.leading, 14)
             }
+        }
+    }
+}
+
+private struct ThemeToggleStyle: ToggleStyle {
+    let theme: AppTheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        let isOn = configuration.isOn
+        HStack {
+            configuration.label
+            RoundedRectangle(cornerRadius: 16)
+                .fill(isOn ? theme.primaryColor : theme.primaryColor.opacity(theme.subtleOpacity * 2))
+                .frame(width: 44, height: 26)
+                .overlay(
+                    Circle()
+                        .fill(theme.backgroundColor)
+                        .frame(width: 22, height: 22)
+                        .offset(x: isOn ? 9 : -9)
+                )
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        configuration.isOn.toggle()
+                    }
+                }
         }
     }
 }

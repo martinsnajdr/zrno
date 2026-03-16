@@ -13,12 +13,12 @@ struct ContentView: View {
     @State private var showProfileList = false
     @State private var showISOPicker = false
     @State private var showSettings = false
-    @State private var isEditingLayout = false
-    @State private var layoutOffsets = LayoutOffsets.load()
+
     @AppStorage("zrno.previewMode") private var previewMode: PreviewMode = .histogram
 
     private var activeProfile: CameraProfile? { selectedProfiles.first }
 
+    // GeometryReader prevents keyboard from pushing the top bar up
     var body: some View {
         GeometryReader { _ in
             ZStack {
@@ -31,19 +31,17 @@ struct ContentView: View {
                 VStack {
                     HStack {
                         // Camera profiles (left)
-                        if !isEditingLayout {
-                            Button {
-                                showProfileList = true
-                            } label: {
-                                Image(systemName: "camera.aperture")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundStyle(theme.primaryColor)
-                                    .frame(width: 40, height: 40)
-                                    .background(theme.primaryColor.opacity(0.06), in: Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("profileButton")
+                        Button {
+                            showProfileList = true
+                        } label: {
+                            Image(systemName: "camera.aperture")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundStyle(theme.primaryColor)
+                                .frame(width: 40, height: 40)
+                                .background(theme.primaryColor.opacity(0.06), in: Circle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("profileButton")
 
                         Spacer()
 
@@ -56,36 +54,17 @@ struct ContentView: View {
                         Spacer()
 
                         // Settings (right)
-                        if !isEditingLayout {
-                            Button {
-                                showSettings = true
-                            } label: {
-                                Image(systemName: "gearshape")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundStyle(theme.primaryColor)
-                                    .frame(width: 40, height: 40)
-                                    .background(theme.primaryColor.opacity(0.06), in: Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("settingsButton")
+                        Button {
+                            showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundStyle(theme.primaryColor)
+                                .frame(width: 40, height: 40)
+                                .background(theme.primaryColor.opacity(0.06), in: Circle())
                         }
-
-                        // Edit mode done button
-                        if isEditingLayout {
-                            Spacer()
-                            Button("Done") {
-                                withAnimation(.spring(duration: 0.3)) {
-                                    isEditingLayout = false
-                                    layoutOffsets.save()
-                                }
-                            }
-                            .font(.system(size: 15, weight: .semibold, design: theme.design))
-                            .foregroundStyle(theme.primaryColor)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(theme.primaryColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
-                            .transition(.opacity)
-                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("settingsButton")
                     }
                     .padding(.top, 20)
                     .padding(.horizontal, 16)
@@ -106,7 +85,7 @@ struct ContentView: View {
                 lightMeter.startMetering()
             }
         }
-        .onChange(of: lightMeter.measuredEV) {
+        .onChange(of: lightMeter.quantizedEV) {
             if let profile = activeProfile {
                 lightMeter.updateRecommendation(for: profile)
             }
@@ -150,14 +129,6 @@ struct ContentView: View {
             SettingsView()
                 .environment(\.appTheme, theme)
         }
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.5)
-                .onEnded { _ in
-                    withAnimation(.spring(duration: 0.3)) {
-                        isEditingLayout = true
-                    }
-                }
-        )
         .onChange(of: colorScheme) { _, _ in
             updateEffectiveAppearance()
         }
@@ -169,7 +140,6 @@ struct ContentView: View {
     @ViewBuilder
     private var meterContent: some View {
         if lightMeter.permissionGranted {
-            DraggableContainer(isEditing: $isEditingLayout, offsets: $layoutOffsets) {
                 MeterView(
                     aperture: lightMeter.recommendedAperture,
                     shutterSpeed: lightMeter.recommendedShutterSpeed,
@@ -229,7 +199,6 @@ struct ContentView: View {
                         lightMeter.switchCamera(to: camera)
                     }
                 )
-            }
         } else {
             VStack(spacing: 16) {
                 Image(systemName: "camera")
@@ -301,66 +270,6 @@ struct ContentView: View {
         case .system:
             theme.effectiveIsDark = (colorScheme == .dark)
         }
-    }
-}
-
-// MARK: - Layout Persistence
-
-struct LayoutOffsets: Codable {
-    var meterOffsetX: CGFloat = 0
-    var meterOffsetY: CGFloat = 0
-
-    func save() {
-        if let data = try? JSONEncoder().encode(self) {
-            UserDefaults.standard.set(data, forKey: "zrno.layout")
-        }
-    }
-
-    static func load() -> LayoutOffsets {
-        guard let data = UserDefaults.standard.data(forKey: "zrno.layout"),
-              let offsets = try? JSONDecoder().decode(LayoutOffsets.self, from: data) else {
-            return LayoutOffsets()
-        }
-        return offsets
-    }
-}
-
-// MARK: - Draggable Container
-
-struct DraggableContainer<Content: View>: View {
-    @Binding var isEditing: Bool
-    @Binding var offsets: LayoutOffsets
-    @ViewBuilder let content: Content
-
-    @State private var dragOffset: CGSize = .zero
-
-    var body: some View {
-        content
-            .offset(
-                x: offsets.meterOffsetX + (isEditing ? dragOffset.width : 0),
-                y: offsets.meterOffsetY + (isEditing ? dragOffset.height : 0)
-            )
-            .overlay {
-                if isEditing {
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(Color.primary.opacity(0.15), lineWidth: 1)
-                        .padding(-16)
-                }
-            }
-            .gesture(isEditing ? drag : nil)
-            .animation(.spring(duration: 0.25), value: isEditing)
-    }
-
-    private var drag: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                dragOffset = value.translation
-            }
-            .onEnded { value in
-                offsets.meterOffsetX += value.translation.width
-                offsets.meterOffsetY += value.translation.height
-                dragOffset = .zero
-            }
     }
 }
 

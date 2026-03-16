@@ -5,6 +5,7 @@ import UIKit
 /// During transition, pixels morph from old view to new view in random order.
 struct ScenePreviewView: View {
     @Environment(\.appTheme) private var theme
+    @AppStorage("zrno.funMode") private var funMode = false
 
     let image: CGImage?
     let histogramBins: [Float]
@@ -22,7 +23,7 @@ struct ScenePreviewView: View {
     @State private var redrawTimer: Timer?
     @State private var hapticTimer: Timer?
 
-    // Games
+    // Games (only used when fun mode is on)
     @State private var arkanoid = ArkanoidGame()
     @State private var runner = RunnerGame()
 
@@ -78,14 +79,28 @@ struct ScenePreviewView: View {
         .frame(maxWidth: .infinity)
         .frame(maxHeight: .infinity)
         .onAppear {
-            if previewMode == .game { arkanoid.start() }
-            if previewMode == .runner { runner.start() }
+            // If fun mode was turned off while a game was saved, fall back
+            if !funMode && (previewMode == .game || previewMode == .runner) {
+                previewMode = .histogram
+            }
+            if funMode && previewMode == .game { arkanoid.start() }
+            if funMode && previewMode == .runner { runner.start() }
         }
         .onChange(of: previewMode) { oldMode, newMode in
             if oldMode == .game { arkanoid.stop() }
             if oldMode == .runner { runner.stop() }
-            if newMode == .game { arkanoid.start() }
-            if newMode == .runner { runner.start() }
+            if newMode == .game && funMode { arkanoid.start() }
+            if newMode == .runner && funMode { runner.start() }
+        }
+        .onChange(of: funMode) { _, enabled in
+            if !enabled {
+                // Stop any running game and fall back to histogram
+                arkanoid.stop()
+                runner.stop()
+                if previewMode == .game || previewMode == .runner {
+                    previewMode = .histogram
+                }
+            }
         }
         .accessibilityIdentifier("scenePreview")
     }
@@ -189,11 +204,13 @@ struct ScenePreviewView: View {
             bgR: colors.bg.r, bgG: colors.bg.g, bgB: colors.bg.b
         )
 
+        let rw = gameState.renderWidth
+        let rh = gameState.renderHeight
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         guard let ctx = CGContext(
             data: &pixels,
-            width: gridW, height: gridH,
-            bitsPerComponent: 8, bytesPerRow: gridW * 4,
+            width: rw, height: rh,
+            bitsPerComponent: 8, bytesPerRow: rw * 4,
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
@@ -233,19 +250,21 @@ struct ScenePreviewView: View {
             return nil
         }
         let newBpp = newImage.bitsPerPixel / 8
+        let scaleX = newImage.width / gridW
+        let scaleY = newImage.height / gridH
 
         // Start with old pixels
         var pixels = oldPixels
         guard pixels.count == totalPixels * 4 else { return nil }
 
-        // Replace revealed positions with new image pixels
+        // Replace revealed positions with new image pixels (downsampled)
         let safeCount = min(revealedCount, pixelOrder.count)
         for j in 0..<safeCount {
             let idx = pixelOrder[j]
             guard idx < totalPixels else { continue }
             let row = idx / gridW
             let col = idx % gridW
-            let srcOffset = row * newImage.bytesPerRow + col * newBpp
+            let srcOffset = (row * scaleY) * newImage.bytesPerRow + (col * scaleX) * newBpp
             let dstOffset = idx * 4
             pixels[dstOffset + 0] = newPtr[srcOffset + 0]
             pixels[dstOffset + 1] = newPtr[srcOffset + 1]
@@ -287,9 +306,14 @@ struct ScenePreviewView: View {
             return result
         }
         let bpp = img.bitsPerPixel / 8
+        // Downsample: if the image is larger than gridW×gridH, sample every Nth pixel
+        let scaleX = img.width / gridW
+        let scaleY = img.height / gridH
         for row in 0..<gridH {
             for col in 0..<gridW {
-                let srcOffset = row * img.bytesPerRow + col * bpp
+                let srcRow = row * scaleY
+                let srcCol = col * scaleX
+                let srcOffset = srcRow * img.bytesPerRow + srcCol * bpp
                 let dstOffset = (row * gridW + col) * 4
                 result[dstOffset + 0] = ptr[srcOffset + 0]
                 result[dstOffset + 1] = ptr[srcOffset + 1]
@@ -308,8 +332,8 @@ struct ScenePreviewView: View {
         // Snapshot old view's pixels before switching
         oldPixels = snapshotCurrentPixels()
 
-        // Switch mode
-        previewMode = forward ? previewMode.next : previewMode.previous
+        // Switch mode (skips games when fun mode is off)
+        previewMode = forward ? previewMode.next(funMode: funMode) : previewMode.previous(funMode: funMode)
 
         // Prepare random reveal order
         let totalPixels = gridW * gridH

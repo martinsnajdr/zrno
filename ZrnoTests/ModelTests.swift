@@ -141,29 +141,45 @@ struct PreviewModeTests {
         #expect(all[3] == .runner)
     }
 
-    @Test func nextCyclesForward() {
-        #expect(PreviewMode.histogram.next == .camera)
-        #expect(PreviewMode.camera.next == .game)
-        #expect(PreviewMode.game.next == .runner)
-        #expect(PreviewMode.runner.next == .histogram)
+    @Test func nextCyclesForwardFunOn() {
+        #expect(PreviewMode.histogram.next(funMode: true) == .camera)
+        #expect(PreviewMode.camera.next(funMode: true) == .game)
+        #expect(PreviewMode.game.next(funMode: true) == .runner)
+        #expect(PreviewMode.runner.next(funMode: true) == .histogram)
     }
 
-    @Test func previousCyclesBackward() {
-        #expect(PreviewMode.histogram.previous == .runner)
-        #expect(PreviewMode.runner.previous == .game)
-        #expect(PreviewMode.game.previous == .camera)
-        #expect(PreviewMode.camera.previous == .histogram)
+    @Test func previousCyclesBackwardFunOn() {
+        #expect(PreviewMode.histogram.previous(funMode: true) == .runner)
+        #expect(PreviewMode.runner.previous(funMode: true) == .game)
+        #expect(PreviewMode.game.previous(funMode: true) == .camera)
+        #expect(PreviewMode.camera.previous(funMode: true) == .histogram)
+    }
+
+    @Test func nextCyclesForwardFunOff() {
+        #expect(PreviewMode.histogram.next(funMode: false) == .camera)
+        #expect(PreviewMode.camera.next(funMode: false) == .histogram)
+    }
+
+    @Test func previousCyclesBackwardFunOff() {
+        #expect(PreviewMode.histogram.previous(funMode: false) == .camera)
+        #expect(PreviewMode.camera.previous(funMode: false) == .histogram)
     }
 
     @Test func nextThenPreviousRoundTrips() {
         for mode in PreviewMode.allCases {
-            #expect(mode.next.previous == mode)
+            #expect(mode.next(funMode: true).previous(funMode: true) == mode)
+        }
+        for mode in PreviewMode.available(funMode: false) {
+            #expect(mode.next(funMode: false).previous(funMode: false) == mode)
         }
     }
 
     @Test func previousThenNextRoundTrips() {
         for mode in PreviewMode.allCases {
-            #expect(mode.previous.next == mode)
+            #expect(mode.previous(funMode: true).next(funMode: true) == mode)
+        }
+        for mode in PreviewMode.available(funMode: false) {
+            #expect(mode.previous(funMode: false).next(funMode: false) == mode)
         }
     }
 
