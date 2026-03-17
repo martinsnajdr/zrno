@@ -235,6 +235,91 @@ struct FocalLengthSelectionTests {
         meter.selectClosestCamera(toFocalLength: 80)
         #expect(meter.activeCameraID == "tele")
     }
+
+    @Test func selectClosestCameraPicksUltraWideForShortFocal() {
+        let meter = LightMeterService()
+        meter.availableCameras = [
+            CameraLens(id: "ultra", deviceType: .builtInUltraWideCamera, focalLength: 13, label: "13mm"),
+            CameraLens(id: "wide", deviceType: .builtInWideAngleCamera, focalLength: 26, label: "26mm"),
+            CameraLens(id: "tele", deviceType: .builtInTelephotoCamera, focalLength: 77, label: "77mm"),
+        ]
+        meter.activeCameraID = "wide"
+        meter.selectClosestCamera(toFocalLength: 15)
+        #expect(meter.activeCameraID == "ultra")
+    }
+
+    @Test func selectClosestCameraPicksWideForMidFocal() {
+        let meter = LightMeterService()
+        meter.availableCameras = [
+            CameraLens(id: "ultra", deviceType: .builtInUltraWideCamera, focalLength: 13, label: "13mm"),
+            CameraLens(id: "wide", deviceType: .builtInWideAngleCamera, focalLength: 26, label: "26mm"),
+            CameraLens(id: "tele", deviceType: .builtInTelephotoCamera, focalLength: 77, label: "77mm"),
+        ]
+        meter.activeCameraID = "ultra"
+        meter.selectClosestCamera(toFocalLength: 40)
+        #expect(meter.activeCameraID == "wide")
+    }
+
+    @Test func selectClosestCameraWithOnlyTwoLenses() {
+        // iPhone 17 style: only ultra-wide + wide
+        let meter = LightMeterService()
+        meter.availableCameras = [
+            CameraLens(id: "ultra", deviceType: .builtInUltraWideCamera, focalLength: 13, label: "13mm"),
+            CameraLens(id: "wide", deviceType: .builtInWideAngleCamera, focalLength: 26, label: "26mm"),
+        ]
+        meter.activeCameraID = "wide"
+        // 60mm should stay on wide (26mm is closer than 13mm)
+        meter.selectClosestCamera(toFocalLength: 60)
+        #expect(meter.activeCameraID == "wide")
+    }
+
+    @Test func selectClosestCameraSwitchesToUltraWideOnShortLens() {
+        // With only two lenses, 15mm should switch to ultra-wide
+        let meter = LightMeterService()
+        meter.availableCameras = [
+            CameraLens(id: "ultra", deviceType: .builtInUltraWideCamera, focalLength: 13, label: "13mm"),
+            CameraLens(id: "wide", deviceType: .builtInWideAngleCamera, focalLength: 26, label: "26mm"),
+        ]
+        meter.activeCameraID = "wide"
+        meter.selectClosestCamera(toFocalLength: 15)
+        #expect(meter.activeCameraID == "ultra")
+    }
+}
+
+// MARK: - Camera Switch (Simulator)
+
+struct CameraSwitchTests {
+
+    @Test func switchCameraUpdatesActiveCameraID() {
+        let meter = LightMeterService()
+        let ultraWide = CameraLens(id: "ultra", deviceType: .builtInUltraWideCamera, focalLength: 13, label: "13mm")
+        let wide = CameraLens(id: "wide", deviceType: .builtInWideAngleCamera, focalLength: 26, label: "26mm")
+        meter.availableCameras = [ultraWide, wide]
+        meter.activeCameraID = "wide"
+        meter.switchCamera(to: ultraWide)
+        #expect(meter.activeCameraID == "ultra")
+    }
+
+    @Test func switchCameraNoopWhenSameCamera() {
+        let meter = LightMeterService()
+        let wide = CameraLens(id: "wide", deviceType: .builtInWideAngleCamera, focalLength: 26, label: "26mm")
+        meter.availableCameras = [wide]
+        meter.activeCameraID = "wide"
+        meter.switchCamera(to: wide)
+        #expect(meter.activeCameraID == "wide")
+    }
+
+    @Test func switchCameraPreservesEVDuringTransition() {
+        let meter = LightMeterService()
+        meter.measuredEV = 12.5
+        let ultra = CameraLens(id: "ultra", deviceType: .builtInUltraWideCamera, focalLength: 13, label: "13mm")
+        let wide = CameraLens(id: "wide", deviceType: .builtInWideAngleCamera, focalLength: 26, label: "26mm")
+        meter.availableCameras = [ultra, wide]
+        meter.activeCameraID = "wide"
+        meter.switchCamera(to: ultra)
+        // EV should be preserved (not reset) during camera transition
+        #expect(meter.measuredEV == 12.5)
+    }
 }
 
 // MARK: - Exposure Status in Auto Mode

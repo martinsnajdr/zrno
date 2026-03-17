@@ -198,8 +198,8 @@ struct ExposureCalculatorFormattingTests {
     }
 
     @Test func formatApertureSubOne() {
-        #expect(ExposureCalculator.formatAperture(0.7) == "f/0.7")
-        #expect(ExposureCalculator.formatAperture(0.8) == "f/0.8")
+        #expect(ExposureCalculator.formatAperture(0.7) == "f/0.70")
+        #expect(ExposureCalculator.formatAperture(0.8) == "f/0.80")
         #expect(ExposureCalculator.formatAperture(0.95) == "f/0.95")
     }
 
@@ -453,10 +453,22 @@ struct FilmPresetsTests {
         #expect(!ExposureCalculator.filmReciprocityPresets.isEmpty)
     }
 
-    @Test func allPValuesGreaterThanOne() {
+    @Test func allPValuesGreaterThanOrEqualToOne() {
         for preset in ExposureCalculator.filmReciprocityPresets {
+            #expect(preset.p >= 1.0, "Preset \(preset.name) has p=\(preset.p) which should be >= 1.0")
+        }
+    }
+
+    @Test func nonNonePresetsHavePGreaterThanOne() {
+        for preset in ExposureCalculator.filmReciprocityPresets where preset.name != "None" {
             #expect(preset.p > 1.0, "Preset \(preset.name) has p=\(preset.p) which should be > 1.0")
         }
+    }
+
+    @Test func nonePresetHasIdentityP() {
+        let none = ExposureCalculator.filmReciprocityPresets.first { $0.name == "None" }
+        #expect(none != nil, "Should have a 'None' preset")
+        #expect(none?.p == 1.0)
     }
 
     @Test func presetsHaveUniqueNames() {

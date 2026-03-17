@@ -123,16 +123,18 @@ struct ThemeFontDesignTests {
 
 // MARK: - AppTheme
 
-struct AppThemeTests {
+@Suite(.serialized) struct AppThemeTests {
 
     @Test func defaultTheme() {
         // Clear saved theme to get defaults
         UserDefaults.standard.removeObject(forKey: "zrno.theme")
+        UserDefaults.standard.synchronize()
         let theme = AppTheme()
         #expect(theme.scheme == .noir)
         #expect(theme.fontDesign == .rounded)
         #expect(theme.appearanceMode == .dark)
         UserDefaults.standard.removeObject(forKey: "zrno.theme")
+        UserDefaults.standard.synchronize()
     }
 
     @Test func subtleOpacityDarkMode() {
@@ -165,6 +167,7 @@ struct AppThemeTests {
 
     @Test func savePersistsTheme() {
         UserDefaults.standard.removeObject(forKey: "zrno.theme")
+        UserDefaults.standard.synchronize()
         let theme = AppTheme()
         theme.scheme = .blueSteel
         theme.fontDesign = .serif
@@ -174,5 +177,6 @@ struct AppThemeTests {
         #expect(reloaded.scheme == .blueSteel)
         #expect(reloaded.fontDesign == .serif)
         UserDefaults.standard.removeObject(forKey: "zrno.theme")
+        UserDefaults.standard.synchronize()
     }
 }
