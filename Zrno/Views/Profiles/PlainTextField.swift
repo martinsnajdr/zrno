@@ -33,6 +33,8 @@ struct PlainTextField: UIViewRepresentable {
             string: placeholder,
             attributes: [.foregroundColor: placeholderColor, .font: font]
         )
+        field.setContentHuggingPriority(.required, for: .vertical)
+        field.setContentCompressionResistancePriority(.required, for: .vertical)
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         field.addTarget(context.coordinator, action: #selector(Coordinator.textChanged(_:)), for: .editingChanged)

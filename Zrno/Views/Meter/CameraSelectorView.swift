@@ -25,6 +25,7 @@ struct CameraSelectorView: View {
                             in: RoundedRectangle(cornerRadius: 4)
                         )
                 }
+                .buttonStyle(.plain)
             }
         }
     }

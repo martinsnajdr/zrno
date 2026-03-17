@@ -30,7 +30,6 @@ struct MeterView: View {
     let onApertureSelect: (Double) -> Void
     let onShutterSelect: (Double) -> Void
     let onLensSelect: (Lens) -> Void
-    let onCameraSelect: (CameraLens) -> Void
 
     private var isApertureLocked: Bool { meterMode == .aperturePriority }
     private var isShutterLocked: Bool { meterMode == .shutterPriority }
@@ -258,17 +257,13 @@ struct MeterView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("isoButton")
 
-            // iPhone camera
-            if cameras.count > 1 {
-                CameraSelectorView(
-                    cameras: cameras,
-                    activeCameraID: activeCameraID,
-                    onSelect: onCameraSelect
-                )
-            } else if let cameraLabel = activeCameraLabel {
+            // iPhone camera label (auto-selected to match film lens)
+            if let cameraLabel = activeCameraLabel {
                 Text("iPhone \(cameraLabel)")
                     .font(.system(size: 11, weight: .regular, design: .monospaced))
                     .foregroundStyle(theme.secondaryColor)
+                    .contentTransition(.numericText())
+                    .animation(.easeInOut(duration: 0.2), value: activeCameraID)
             }
         }
     }
@@ -352,8 +347,7 @@ struct MeterView: View {
             uncorrectedShutterSpeed: 0,
             onApertureSelect: { _ in },
             onShutterSelect: { _ in },
-            onLensSelect: { _ in },
-            onCameraSelect: { _ in }
+            onLensSelect: { _ in }
         )
     }
     .preferredColorScheme(.dark)

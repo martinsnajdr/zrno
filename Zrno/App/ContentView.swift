@@ -83,6 +83,10 @@ struct ContentView: View {
             Task {
                 await lightMeter.requestPermission()
                 lightMeter.startMetering()
+                // Match iPhone camera to the active film lens focal length
+                if let lens = activeProfile?.lenses.first(where: { $0.isSelected }) {
+                    lightMeter.selectClosestCamera(toFocalLength: lens.focalLength)
+                }
             }
         }
         .onChange(of: lightMeter.quantizedEV) {
@@ -91,6 +95,15 @@ struct ContentView: View {
             }
         }
         .onChange(of: allProfiles.count) {
+            if let profile = activeProfile {
+                lightMeter.updateRecommendation(for: profile, force: true)
+            }
+        }
+        .onChange(of: activeProfile?.name) { _, _ in
+            // Profile switched — match iPhone camera to the new lens
+            if let lens = activeProfile?.lenses.first(where: { $0.isSelected }) {
+                lightMeter.selectClosestCamera(toFocalLength: lens.focalLength)
+            }
             if let profile = activeProfile {
                 lightMeter.updateRecommendation(for: profile, force: true)
             }
@@ -194,9 +207,6 @@ struct ContentView: View {
                         lens.isSelected = true
                         lightMeter.selectClosestCamera(toFocalLength: lens.focalLength)
                         lightMeter.updateRecommendation(for: profile, force: true)
-                    },
-                    onCameraSelect: { camera in
-                        lightMeter.switchCamera(to: camera)
                     }
                 )
         } else {

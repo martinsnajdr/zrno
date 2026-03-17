@@ -144,11 +144,11 @@ struct ProfileListView: View {
                 }
             }
             .sheet(isPresented: $showEditor) {
-                ProfileEditorView(profile: nil)
+                ProfileEditorView(profile: nil, isNew: true)
                     .environment(\.appTheme, theme)
             }
             .sheet(item: $editingProfile) { profile in
-                ProfileEditorView(profile: profile)
+                ProfileEditorView(profile: profile, isNew: false)
                     .environment(\.appTheme, theme)
             }
         }

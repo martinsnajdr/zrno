@@ -90,6 +90,10 @@ struct PriorityValuePicker: View {
                         proxy.scrollTo(newValue, anchor: .center)
                     }
                 }
+                .onChange(of: values) { _, _ in
+                    // Profile changed — values array is different, re-center
+                    proxy.scrollTo(selectedValue, anchor: .center)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.25), value: isLocked)

@@ -385,6 +385,11 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
 
     func switchCamera(to lens: CameraLens) {
         guard lens.id != activeCameraID else { return }
+
+        #if targetEnvironment(simulator)
+        activeCameraID = lens.id
+        return
+        #else
         guard let session = captureSession else { return }
 
         let discovery = AVCaptureDevice.DiscoverySession(
@@ -394,6 +399,12 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
         )
 
         guard let newDevice = discovery.devices.first(where: { $0.uniqueID == lens.id }) else { return }
+
+        // Update UI state immediately (we're on main thread)
+        activeCameraID = lens.id
+        observations.removeAll()
+        // Keep hasInitialReading true — old EV is close enough during transition.
+        // Resetting causes stale exposure values while the new camera warms up.
 
         sessionQueue.async { [weak self] in
             guard let self else { return }
@@ -429,12 +440,10 @@ final class LightMeterService: NSObject, @unchecked Sendable, AVCaptureVideoData
 
             DispatchQueue.main.async {
                 self.captureDevice = newDevice
-                self.activeCameraID = lens.id
-                self.observations.removeAll()
-                self.hasInitialReading = false
                 self.observeExposure()
             }
         }
+        #endif
     }
 
     // MARK: - Camera Session Setup

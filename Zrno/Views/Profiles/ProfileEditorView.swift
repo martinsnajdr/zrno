@@ -6,7 +6,8 @@ struct ProfileEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
 
-    let profile: CameraProfile?
+    @State var profile: CameraProfile?
+    let isNew: Bool
 
     @State private var name: String = ""
     @State private var filmISO: Int = 400
@@ -62,8 +63,9 @@ struct ProfileEditorView: View {
                             filmReciprocitySection
                         }
 
-                        // Lenses (only when editing, classic only)
-                        if isEditing, cameraType == .classic {
+                        // Lenses (classic cameras only)
+                        if profile != nil, cameraType == .classic {
+                            VStack(spacing: 6) {
                             sheetSection("Lenses") {
                                 let lenses = sortedLenses
                                 ForEach(Array(lenses.enumerated()), id: \.element.id) { index, lens in
@@ -180,10 +182,12 @@ struct ProfileEditorView: View {
                             }
 
                             sectionFooter("Each lens defines its own set of apertures.")
+                            }
                         }
 
                         // Shutter Speeds (classic only)
                         if cameraType == .classic {
+                            VStack(spacing: 6) {
                             sheetSection("Available Shutter Speeds") {
                                 sheetRow(isLast: true) {
                                     shutterSpeedGrid
@@ -191,10 +195,12 @@ struct ProfileEditorView: View {
                             }
 
                             sectionFooter("Select the shutter speeds your camera supports.")
+                            }
                         }
 
                         // Calibration (classic only)
                         if cameraType == .classic, !selectedShutterSpeeds.isEmpty {
+                            VStack(spacing: 6) {
                             sheetSection("Speed Calibration") {
                                 let speeds = Array(selectedShutterSpeeds).sorted()
                                 ForEach(Array(speeds.enumerated()), id: \.element) { index, speed in
@@ -232,6 +238,7 @@ struct ProfileEditorView: View {
                             }
 
                             sectionFooter("Advanced: if you've measured a shutter speed to differ from its marking, enter the actual value. E.g. if 1/125 runs at 1/105, type 105.")
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -247,7 +254,7 @@ struct ProfileEditorView: View {
                         .foregroundStyle(theme.primaryColor)
 
                     HStack {
-                        Button { dismiss() } label: {
+                        Button { if isNew { cancelNew() } else { dismiss() } } label: {
                             Text("Cancel")
                                 .font(.system(size: 14, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(theme.primaryColor)
@@ -297,7 +304,26 @@ struct ProfileEditorView: View {
         .onTapGesture {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
-        .onAppear { loadProfile() }
+        .onAppear {
+            if isNew && profile == nil {
+                let newProfile = CameraProfile(
+                    name: "",
+                    filmISO: 400,
+                    isSelected: false
+                )
+                modelContext.insert(newProfile)
+                let defaultLens = Lens(
+                    name: "Lens 1",
+                    focalLength: 50,
+                    apertures: CameraProfile.basicApertures,
+                    isSelected: true
+                )
+                defaultLens.cameraProfile = newProfile
+                modelContext.insert(defaultLens)
+                profile = newProfile
+            }
+            loadProfile()
+        }
         .sheet(isPresented: $showAddLens) {
             if let profile {
                 LensEditorView(lens: nil, profile: profile)
@@ -588,6 +614,7 @@ struct ProfileEditorView: View {
         Text(text)
             .font(.system(size: 12, weight: .regular, design: .monospaced))
             .foregroundStyle(theme.secondaryColor)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 4)
     }
 
@@ -673,31 +700,26 @@ struct ProfileEditorView: View {
 
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmedName.isEmpty else { return }
+        guard !trimmedName.isEmpty, let profile else { return }
 
         let calibration = buildCalibration()
 
-        if let profile {
-            profile.name = trimmedName
-            profile.filmISO = filmISO
-            profile.type = cameraType
-            profile.shutterSpeeds = Array(selectedShutterSpeeds).sorted()
-            profile.exposureCompensation = compensation
-            profile.shutterCalibration = calibration
-            savePinholeProperties(to: profile)
-        } else {
-            let newProfile = CameraProfile(
-                name: trimmedName,
-                shutterSpeeds: Array(selectedShutterSpeeds).sorted(),
-                filmISO: filmISO,
-                exposureCompensation: compensation,
-                isSelected: false,
-                shutterCalibration: calibration
-            )
-            newProfile.type = cameraType
-            savePinholeProperties(to: newProfile)
-            modelContext.insert(newProfile)
+        profile.name = trimmedName
+        profile.filmISO = filmISO
+        profile.type = cameraType
+        profile.shutterSpeeds = Array(selectedShutterSpeeds).sorted()
+        profile.exposureCompensation = compensation
+        profile.shutterCalibration = calibration
+        savePinholeProperties(to: profile)
+        dismiss()
+    }
+
+    private func cancelNew() {
+        guard isNew, let profile else { return }
+        for lens in profile.lenses {
+            modelContext.delete(lens)
         }
+        modelContext.delete(profile)
         dismiss()
     }
 
